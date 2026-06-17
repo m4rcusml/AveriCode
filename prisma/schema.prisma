@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum GitHubAccountType {
+  USER
+  ORGANIZATION
+}
+
+enum RepositorySelection {
+  ALL
+  SELECTED
+}
+
+enum ActivityStatus {
+  ACTIVE
+  INACTIVE
+  UNKNOWN
+}
+
+enum SyncRunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum SyncTrigger {
+  CRON
+  MANUAL
+}
+
+model User {
+  id             String            @id @default(cuid())
+  name           String?
+  email          String?           @unique
+  emailVerified  DateTime?
+  image          String?
+  githubUserId   String?           @unique
+  githubUsername String?           @unique
+  accounts       Account[]
+  sessions       Session[]
+  ownedWorkspaces Workspace[]      @relation("WorkspaceOwner")
+  memberships    WorkspaceMember[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Workspace {
+  id            String              @id @default(cuid())
+  name          String
+  slug          String              @unique
+  ownerId       String
+  owner         User                @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members       WorkspaceMember[]
+  installations GitHubInstallation[]
+  repositories  Repository[]
+  syncRuns      SyncRun[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model GitHubInstallation {
+  id                  String              @id @default(cuid())
+  installationId      String
+  accountLogin        String
+  accountType         GitHubAccountType
+  repositorySelection RepositorySelection
+  workspaceId         String
+  workspace           Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  repositories        Repository[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@unique([workspaceId, installationId])
+  @@index([installationId])
+}
+
+model Repository {
+  id                   String                  @id @default(cuid())
+  workspaceId          String
+  githubInstallationId String
+  githubRepoId         String
+  owner                String
+  name                 String
+  fullName             String
+  private              Boolean                 @default(false)
+  defaultBranch        String?
+  isActive             Boolean                 @default(false)
+  lastSyncedAt         DateTime?
+  workspace            Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  installation         GitHubInstallation       @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
+  contributors         RepositoryContributor[]
+  snapshots            CommitActivitySnapshot[]
+  syncRuns             SyncRun[]
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@unique([workspaceId, githubRepoId])
+  @@index([workspaceId, isActive])
+}
+
+model Contributor {
+  id             String                  @id @default(cuid())
+  githubUserId   String?                 @unique
+  username       String?                 @unique
+  name           String?
+  avatarUrl      String?
+  email          String?                 @unique
+  repositories   RepositoryContributor[]
+  snapshots      CommitActivitySnapshot[]
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+}
+
+model RepositoryContributor {
+  id            String      @id @default(cuid())
+  repositoryId  String
+  contributorId String
+  isExpected    Boolean     @default(false)
+  isIgnored     Boolean     @default(false)
+  repository    Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  contributor   Contributor @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([repositoryId, contributorId])
+  @@index([contributorId])
+}
+
+model CommitActivitySnapshot {
+  id            String         @id @default(cuid())
+  repositoryId  String
+  contributorId String
+  syncRunId     String?
+  periodStart   DateTime
+  periodEnd     DateTime
+  commitCount   Int            @default(0)
+  lastCommitAt  DateTime?
+  status        ActivityStatus @default(UNKNOWN)
+  repository    Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  contributor   Contributor    @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+  syncRun       SyncRun?       @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+
+  @@index([repositoryId, periodEnd])
+  @@index([contributorId, periodEnd])
+}
+
+model SyncRun {
+  id           String        @id @default(cuid())
+  workspaceId  String
+  repositoryId String?
+  status       SyncRunStatus @default(PENDING)
+  trigger      SyncTrigger
+  startedAt    DateTime      @default(now())
+  finishedAt   DateTime?
+  error        String?       @db.Text
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  repository   Repository?   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  snapshots    CommitActivitySnapshot[]
+
+  @@index([workspaceId, startedAt])
+  @@index([repositoryId, status])
+  @@index([repositoryId, trigger, startedAt])
+}
