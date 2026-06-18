@@ -16,18 +16,49 @@ export type GitHubCommit = {
   };
 };
 
+export type GitHubCommitWithBranch = GitHubCommit & {
+  branchName: string | null;
+};
+
+export type GitHubBranch = {
+  name: string;
+};
+
 type FetchRepositoryCommitsInput = {
   owner: string;
   name: string;
   defaultBranch?: string | null;
+  branches?: string[];
   token: string;
   since: Date;
   until: Date;
 };
 
-export async function fetchRepositoryCommits(input: FetchRepositoryCommitsInput) {
+type FetchBranchCommitsInput = FetchRepositoryCommitsInput & {
+  branchName: string | null;
+};
+
+function uniqueBranchNames(branches: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const uniqueBranches: string[] = [];
+
+  for (const branch of branches) {
+    const cleanBranch = branch?.trim();
+
+    if (!cleanBranch || seen.has(cleanBranch)) {
+      continue;
+    }
+
+    seen.add(cleanBranch);
+    uniqueBranches.push(cleanBranch);
+  }
+
+  return uniqueBranches;
+}
+
+async function fetchBranchCommits(input: FetchBranchCommitsInput) {
   const commits: GitHubCommit[] = [];
-  const branchQuery = input.defaultBranch ? `&sha=${encodeURIComponent(input.defaultBranch)}` : "";
+  const branchQuery = input.branchName ? `&sha=${encodeURIComponent(input.branchName)}` : "";
 
   for (let page = 1; ; page += 1) {
     try {
@@ -55,4 +86,55 @@ export async function fetchRepositoryCommits(input: FetchRepositoryCommitsInput)
   }
 
   return commits;
+}
+
+export async function fetchRepositoryCommits(input: FetchRepositoryCommitsInput) {
+  const commitsBySha = new Map<string, GitHubCommitWithBranch>();
+  const branches = uniqueBranchNames([input.defaultBranch, ...(input.branches ?? [])]);
+  const branchNames = branches.length > 0 ? branches : [null];
+
+  for (const branchName of branchNames) {
+    const commits = await fetchBranchCommits({
+      ...input,
+      branchName
+    });
+
+    for (const commit of commits) {
+      if (!commitsBySha.has(commit.sha)) {
+        commitsBySha.set(commit.sha, {
+          ...commit,
+          branchName
+        });
+      }
+    }
+  }
+
+  return [...commitsBySha.values()];
+}
+
+export async function fetchRepositoryBranches(input: {
+  owner: string;
+  name: string;
+  token: string;
+}) {
+  const branches: GitHubBranch[] = [];
+
+  for (let page = 1; ; page += 1) {
+    const pageBranches = await githubRequest<GitHubBranch[]>(
+      `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(
+        input.name
+      )}/branches?per_page=100&page=${page}`,
+      {
+        bearerToken: input.token
+      }
+    );
+
+    branches.push(...pageBranches);
+
+    if (pageBranches.length < 100) {
+      break;
+    }
+  }
+
+  return branches;
 }

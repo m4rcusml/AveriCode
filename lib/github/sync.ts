@@ -2,7 +2,7 @@ import { ActivityStatus, Prisma, SyncTrigger } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getLastSevenDayPeriod } from "@/lib/dates";
 import { getInstallationAccessToken } from "@/lib/github/app-auth";
-import { fetchRepositoryCommits, type GitHubCommit } from "@/lib/github/commits";
+import { fetchRepositoryCommits, type GitHubCommitWithBranch } from "@/lib/github/commits";
 
 export const MANUAL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
@@ -33,7 +33,7 @@ function normalizeEmail(value: string | null | undefined) {
   return cleanString(value)?.toLowerCase() ?? null;
 }
 
-function toContributorInput(commit: GitHubCommit): ContributorInput | null {
+function toContributorInput(commit: GitHubCommitWithBranch): ContributorInput | null {
   const githubUserId = commit.author?.id ? String(commit.author.id) : null;
   const username = cleanString(commit.author?.login);
   const email = normalizeEmail(commit.commit.author?.email);
@@ -81,38 +81,21 @@ function contributorWriteData(input: ContributorInput) {
 async function findOrCreateContributor(input: ContributorInput) {
   const data = contributorWriteData(input);
 
-  if (input.githubUserId) {
-    return prisma.contributor.upsert({
-      where: { githubUserId: input.githubUserId },
-      update: data,
-      create: data
-    });
-  }
-
-  if (input.email) {
-    const existing = await prisma.contributor.findUnique({
-      where: { email: input.email }
-    });
-
-    if (existing) {
-      return prisma.contributor.update({
-        where: { id: existing.id },
-        data
-      });
+  const existing = await prisma.contributor.findFirst({
+    where: {
+      OR: [
+        input.githubUserId ? { githubUserId: input.githubUserId } : undefined,
+        input.email ? { email: input.email } : undefined,
+        input.username ? { username: input.username } : undefined
+      ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition))
     }
-  }
+  });
 
-  if (input.username) {
-    const existing = await prisma.contributor.findUnique({
-      where: { username: input.username }
+  if (existing) {
+    return prisma.contributor.update({
+      where: { id: existing.id },
+      data
     });
-
-    if (existing) {
-      return prisma.contributor.update({
-        where: { id: existing.id },
-        data
-      });
-    }
   }
 
   return prisma.contributor.create({
@@ -120,7 +103,7 @@ async function findOrCreateContributor(input: ContributorInput) {
   });
 }
 
-function getCommitDate(commit: GitHubCommit) {
+function getCommitDate(commit: GitHubCommitWithBranch) {
   const date = commit.commit.author?.date;
 
   if (!date) {
@@ -184,6 +167,11 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
         include: {
           contributor: true
         }
+      },
+      branches: {
+        orderBy: {
+          name: "asc"
+        }
       }
     }
   });
@@ -219,6 +207,7 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
       owner: repository.owner,
       name: repository.name,
       defaultBranch: repository.defaultBranch,
+      branches: repository.branches.map((branch) => branch.name),
       token,
       since: periodStart,
       until: periodEnd
@@ -229,6 +218,7 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
       {
         commitCount: number;
         lastCommitAt: Date | null;
+        lastCommitBranch: string | null;
       }
     >();
 
@@ -266,13 +256,15 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
       const commitDate = getCommitDate(commit);
       const current = activityByContributor.get(contributorId) ?? {
         commitCount: 0,
-        lastCommitAt: null
+        lastCommitAt: null,
+        lastCommitBranch: null
       };
 
       current.commitCount += 1;
 
       if (commitDate && (!current.lastCommitAt || commitDate > current.lastCommitAt)) {
         current.lastCommitAt = commitDate;
+        current.lastCommitBranch = commit.branchName;
       }
 
       activityByContributor.set(contributorId, current);
@@ -291,6 +283,7 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
           periodEnd,
           commitCount,
           lastCommitAt: activity?.lastCommitAt ?? null,
+          lastCommitBranch: activity?.lastCommitBranch ?? null,
           status: commitCount > 0 ? ActivityStatus.ACTIVE : ActivityStatus.INACTIVE
         };
       }

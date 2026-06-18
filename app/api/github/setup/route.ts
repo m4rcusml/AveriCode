@@ -5,6 +5,16 @@ import { getPrimaryWorkspaceForUser, assertWorkspaceWriteAccess } from "@/lib/wo
 
 export const dynamic = "force-dynamic";
 
+function redirectWithSetupError(request: NextRequest, params: Record<string, string>) {
+  const redirectUrl = new URL("/dashboard", request.nextUrl.origin);
+
+  for (const [key, value] of Object.entries(params)) {
+    redirectUrl.searchParams.set(key, value);
+  }
+
+  return NextResponse.redirect(redirectUrl);
+}
+
 export async function GET(request: NextRequest) {
   const session = await getAuthSession();
 
@@ -17,7 +27,10 @@ export async function GET(request: NextRequest) {
   const installationId = request.nextUrl.searchParams.get("installation_id");
 
   if (!installationId) {
-    return NextResponse.json({ error: "Missing installation_id." }, { status: 400 });
+    return redirectWithSetupError(request, {
+      setup_error: "missing_installation_id",
+      setup_action: request.nextUrl.searchParams.get("setup_action") ?? "unknown"
+    });
   }
 
   const stateWorkspaceId = request.nextUrl.searchParams.get("state");
@@ -28,7 +41,19 @@ export async function GET(request: NextRequest) {
   try {
     await assertWorkspaceWriteAccess(session.user.id, workspace.id);
     const result = await persistInstallationFromSetup(workspace.id, installationId);
-    const redirectUrl = new URL("/onboarding/repositories", request.nextUrl.origin);
+    const nextRepository =
+      result.newRepositories.length === 1
+        ? result.newRepositories[0]
+        : result.importedRepositories.length === 1
+          ? result.importedRepositories[0]
+          : null;
+    const redirectUrl = new URL(
+      nextRepository
+        ? `/dashboard/repositories/${nextRepository.id}/contributors`
+        : "/dashboard",
+      request.nextUrl.origin
+    );
+
     redirectUrl.searchParams.set("workspaceId", workspace.id);
     redirectUrl.searchParams.set("imported", String(result.importedCount));
     return NextResponse.redirect(redirectUrl);

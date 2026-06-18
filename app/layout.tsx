@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, Code2, GitBranch, Settings, Users } from "lucide-react";
+import { Activity, Code2, Settings } from "lucide-react";
 import { AuthControls } from "@/components/auth-controls";
+import { NavLink } from "@/components/nav-link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,22 +27,14 @@ export default function RootLayout({
               AveriCode
             </Link>
             <nav className="nav" aria-label="Primary navigation">
-              <Link href="/dashboard">
+              <NavLink exact href="/dashboard">
                 <Activity aria-hidden size={16} />
                 Dashboard
-              </Link>
-              <Link href="/dashboard/repositories">
-                <GitBranch aria-hidden size={16} />
-                Repositories
-              </Link>
-              <Link href="/dashboard/contributors">
-                <Users aria-hidden size={16} />
-                Contributors
-              </Link>
-              <Link href="/settings">
+              </NavLink>
+              <NavLink href="/settings">
                 <Settings aria-hidden size={16} />
                 Settings
-              </Link>
+              </NavLink>
             </nav>
             <AuthControls />
           </header>

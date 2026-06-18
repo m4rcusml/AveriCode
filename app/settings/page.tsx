@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarClock, Database, ExternalLink, Github, KeyRound, ShieldCheck } from "lucide-react";
+import { CalendarClock, Database, ExternalLink, Github, KeyRound, RefreshCw, ShieldCheck } from "lucide-react";
+import { refreshInstallationRepositoriesAction } from "@/app/actions";
 import { getAuthSession } from "@/lib/auth";
-import { getGitHubAppInstallUrl } from "@/lib/github/install-url";
+import { getGitHubAppInstallUrl, getGitHubInstallationSettingsUrl } from "@/lib/github/install-url";
 import { prisma } from "@/lib/prisma";
 import { getPrimaryWorkspaceForUser } from "@/lib/workspaces";
 
@@ -77,14 +77,10 @@ export default async function SettingsPage() {
           {installUrl ? (
             <a className="button button-primary" href={installUrl}>
               <Github aria-hidden size={16} />
-              Install GitHub App
+              Add repositories
               <ExternalLink aria-hidden size={14} />
             </a>
-          ) : (
-            <Link className="button button-secondary" href="/onboarding">
-              Onboarding
-            </Link>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -172,7 +168,7 @@ export default async function SettingsPage() {
               {installUrl ? (
                 <a className="button button-primary" href={installUrl}>
                   <Github aria-hidden size={16} />
-                  Install GitHub App
+                  Add repositories
                 </a>
               ) : null}
             </div>
@@ -186,6 +182,7 @@ export default async function SettingsPage() {
                   <th>Type</th>
                   <th>Selection</th>
                   <th>Repositories</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -195,6 +192,26 @@ export default async function SettingsPage() {
                     <td>{installation.accountType}</td>
                     <td>{installation.repositorySelection}</td>
                     <td>{installation._count.repositories}</td>
+                    <td>
+                      <div className="button-row">
+                        <a
+                          className="button button-secondary"
+                          href={getGitHubInstallationSettingsUrl(installation)}
+                        >
+                          <Github aria-hidden size={16} />
+                          Configure access
+                          <ExternalLink aria-hidden size={14} />
+                        </a>
+                        <form action={refreshInstallationRepositoriesAction}>
+                          <input name="installationId" type="hidden" value={installation.id} />
+                          <input name="returnTo" type="hidden" value="/settings" />
+                          <button className="button button-secondary" type="submit">
+                            <RefreshCw aria-hidden size={16} />
+                            Refresh repos
+                          </button>
+                        </form>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
+import { syncRepositoryActivity } from "@/lib/github/sync";
 import { addExpectedContributor } from "@/lib/repository-config";
 
 type RouteContext = {
@@ -25,7 +26,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     const repositoryContributor = await addExpectedContributor(session.user.id, repositoryId, body);
-    return NextResponse.json({ repositoryContributor }, { status: 201 });
+    const syncResult = await syncRepositoryActivity({
+      repositoryId,
+      trigger: "MANUAL"
+    });
+
+    return NextResponse.json({ repositoryContributor, syncResult }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Contributor creation failed.";
     return NextResponse.json({ error: message }, { status: 400 });

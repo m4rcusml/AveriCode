@@ -26,6 +26,12 @@ type GitHubRepositoriesResponse = {
   repositories: GitHubRepositoryResponse[];
 };
 
+type ImportedRepository = {
+  id: string;
+  fullName: string;
+  wasExisting: boolean;
+};
+
 function mapAccountType(type: GitHubInstallationResponse["account"]["type"]) {
   return type === "Organization" ? GitHubAccountType.ORGANIZATION : GitHubAccountType.USER;
 }
@@ -84,11 +90,13 @@ export async function persistInstallationFromSetup(workspaceId: string, installa
     }
   });
 
-  const importedCount = await importInstallationRepositories(savedInstallation.id);
+  const importedRepositories = await importInstallationRepositories(savedInstallation.id);
 
   return {
     installation: savedInstallation,
-    importedCount
+    importedCount: importedRepositories.length,
+    importedRepositories,
+    newRepositories: importedRepositories.filter((repository) => !repository.wasExisting)
   };
 }
 
@@ -97,9 +105,24 @@ export async function importInstallationRepositories(githubInstallationId: strin
     where: { id: githubInstallationId }
   });
   const repositories = await fetchInstallationRepositories(installation.installationId);
+  const existingRepositories = await prisma.repository.findMany({
+    where: {
+      workspaceId: installation.workspaceId,
+      githubRepoId: {
+        in: repositories.map((repository) => String(repository.id))
+      }
+    },
+    select: {
+      githubRepoId: true
+    }
+  });
+  const existingRepositoryIds = new Set(
+    existingRepositories.map((repository) => repository.githubRepoId)
+  );
+  const importedRepositories: ImportedRepository[] = [];
 
   for (const repository of repositories) {
-    await prisma.repository.upsert({
+    const savedRepository = await prisma.repository.upsert({
       where: {
         workspaceId_githubRepoId: {
           workspaceId: installation.workspaceId,
@@ -125,7 +148,13 @@ export async function importInstallationRepositories(githubInstallationId: strin
         defaultBranch: repository.default_branch
       }
     });
+
+    importedRepositories.push({
+      id: savedRepository.id,
+      fullName: savedRepository.fullName,
+      wasExisting: existingRepositoryIds.has(savedRepository.githubRepoId)
+    });
   }
 
-  return repositories.length;
+  return importedRepositories;
 }

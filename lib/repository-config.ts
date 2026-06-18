@@ -5,6 +5,7 @@ type ContributorConfigInput = {
   githubUserId?: string | null;
   username?: string | null;
   name?: string | null;
+  avatarUrl?: string | null;
   email?: string | null;
 };
 
@@ -26,6 +27,7 @@ function contributorData(input: ContributorConfigInput) {
     githubUserId: cleanString(input.githubUserId) ?? undefined,
     username: normalizeUsername(input.username) ?? undefined,
     name: cleanString(input.name) ?? undefined,
+    avatarUrl: cleanString(input.avatarUrl) ?? undefined,
     email: normalizeEmail(input.email) ?? undefined
   };
 }
@@ -37,38 +39,21 @@ async function findOrCreateConfiguredContributor(input: ContributorConfigInput) 
     throw new Error("Expected contributor requires a GitHub username, GitHub user id, or email.");
   }
 
-  if (data.githubUserId) {
-    return prisma.contributor.upsert({
-      where: { githubUserId: data.githubUserId },
-      update: data,
-      create: data
-    });
-  }
-
-  if (data.username) {
-    const existing = await prisma.contributor.findUnique({
-      where: { username: data.username }
-    });
-
-    if (existing) {
-      return prisma.contributor.update({
-        where: { id: existing.id },
-        data
-      });
+  const existing = await prisma.contributor.findFirst({
+    where: {
+      OR: [
+        data.githubUserId ? { githubUserId: data.githubUserId } : undefined,
+        data.username ? { username: data.username } : undefined,
+        data.email ? { email: data.email } : undefined
+      ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition))
     }
-  }
+  });
 
-  if (data.email) {
-    const existing = await prisma.contributor.findUnique({
-      where: { email: data.email }
+  if (existing) {
+    return prisma.contributor.update({
+      where: { id: existing.id },
+      data
     });
-
-    if (existing) {
-      return prisma.contributor.update({
-        where: { id: existing.id },
-        data
-      });
-    }
   }
 
   return prisma.contributor.create({
@@ -116,6 +101,45 @@ export async function addExpectedContributor(
   });
 }
 
+export async function addExpectedContributors(
+  userId: string,
+  repositoryId: string,
+  inputs: ContributorConfigInput[]
+) {
+  await assertRepositoryWriteAccess(userId, repositoryId);
+
+  const results = [];
+
+  for (const input of inputs) {
+    const contributor = await findOrCreateConfiguredContributor(input);
+    results.push(
+      await prisma.repositoryContributor.upsert({
+        where: {
+          repositoryId_contributorId: {
+            repositoryId,
+            contributorId: contributor.id
+          }
+        },
+        update: {
+          isExpected: true,
+          isIgnored: false
+        },
+        create: {
+          repositoryId,
+          contributorId: contributor.id,
+          isExpected: true,
+          isIgnored: false
+        },
+        include: {
+          contributor: true
+        }
+      })
+    );
+  }
+
+  return results;
+}
+
 export async function updateRepositoryContributor(
   userId: string,
   repositoryContributorId: string,
@@ -144,5 +168,70 @@ export async function updateRepositoryContributor(
   return prisma.repositoryContributor.update({
     where: { id: repositoryContributorId },
     data: input
+  });
+}
+
+function normalizeBranchName(value: string | null | undefined) {
+  const cleaned = value?.trim();
+  return cleaned ? cleaned : null;
+}
+
+export async function addRepositoryBranches(userId: string, repositoryId: string, branchNames: string[]) {
+  const repository = await assertRepositoryWriteAccess(userId, repositoryId);
+  const existingRepository = await prisma.repository.findUniqueOrThrow({
+    where: { id: repository.id },
+    select: {
+      defaultBranch: true
+    }
+  });
+  const defaultBranch = normalizeBranchName(existingRepository.defaultBranch);
+  const uniqueBranchNames = [
+    ...new Set(
+      branchNames
+        .map(normalizeBranchName)
+        .filter((branchName): branchName is string => Boolean(branchName))
+        .filter((branchName) => branchName !== defaultBranch)
+    )
+  ];
+
+  for (const branchName of uniqueBranchNames) {
+    await prisma.repositoryBranch.upsert({
+      where: {
+        repositoryId_name: {
+          repositoryId,
+          name: branchName
+        }
+      },
+      update: {},
+      create: {
+        repositoryId,
+        name: branchName
+      }
+    });
+  }
+
+  return uniqueBranchNames.length;
+}
+
+export async function removeRepositoryBranch(userId: string, repositoryBranchId: string) {
+  const repositoryBranch = await prisma.repositoryBranch.findUnique({
+    where: { id: repositoryBranchId },
+    include: {
+      repository: {
+        select: {
+          workspaceId: true
+        }
+      }
+    }
+  });
+
+  if (!repositoryBranch) {
+    throw new Error("Repository branch not found.");
+  }
+
+  await assertWorkspaceWriteAccess(userId, repositoryBranch.repository.workspaceId);
+
+  return prisma.repositoryBranch.delete({
+    where: { id: repositoryBranchId }
   });
 }

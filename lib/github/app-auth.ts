@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createPrivateKey } from "node:crypto";
 import jwt from "jsonwebtoken";
 
 const GITHUB_API_URL = "https://api.github.com";
@@ -39,6 +40,15 @@ export async function createGitHubAppJwt() {
   }
 
   const privateKey = await getGitHubPrivateKey();
+
+  try {
+    createPrivateKey(privateKey);
+  } catch {
+    throw new Error(
+      "Invalid GitHub App private key. Use GITHUB_APP_PRIVATE_KEY with escaped \\n line breaks, quote the full multiline PEM value, or set GITHUB_APP_PRIVATE_KEY_PATH to the downloaded .pem file."
+    );
+  }
+
   const now = Math.floor(Date.now() / 1000);
 
   return jwt.sign(

@@ -36,6 +36,12 @@ GITHUB_APP_PRIVATE_KEY_PATH="C:\\path\\to\\github-app.private-key.pem"
 
 `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` can be used if OAuth should use a separate OAuth App. If they are omitted, AveriCode falls back to the GitHub App client id and secret.
 
+For local development, `GITHUB_APP_PRIVATE_KEY_PATH` is the least error-prone option. If using `GITHUB_APP_PRIVATE_KEY` directly in `.env`, keep the full PEM as one quoted value with escaped line breaks:
+
+```env
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+```
+
 3. Create and apply the database schema:
 
 ```bash
@@ -60,7 +66,7 @@ npm run dev
 
 1. Sign in with GitHub OAuth.
 2. AveriCode creates a default personal workspace.
-3. Install the AveriCode GitHub App from onboarding or settings.
+3. Install the AveriCode GitHub App from the dashboard, repositories, or settings.
 4. GitHub redirects to `/api/github/setup?installation_id=...`.
 5. AveriCode persists the installation and imports repositories.
 6. Activate repositories to monitor.
@@ -70,9 +76,7 @@ npm run dev
 
 ## Important routes
 
-- `/dashboard` - saved activity snapshots
-- `/dashboard/repositories` - repository activation and manual sync
-- `/dashboard/contributors` - expected contributor configuration
-- `/onboarding` - setup checklist
+- `/dashboard` - saved activity snapshots, repository controls, and manual sync
+- `/dashboard/repositories/[repositoryId]/contributors` - expected contributor configuration per repository
 - `/api/github/sync-now` - protected manual sync API
 - `/api/cron/weekly-sync` - scheduled sync endpoint
