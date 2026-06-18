@@ -25,7 +25,7 @@ import { getAuthSession } from "@/lib/auth";
 import { formatDateTime } from "@/lib/dates";
 import { getGitHubAppInstallUrl, getGitHubInstallationSettingsUrl } from "@/lib/github/install-url";
 import { prisma } from "@/lib/prisma";
-import { getPrimaryWorkspaceForUser } from "@/lib/workspaces";
+import { getSelectedWorkspaceForUser } from "@/lib/workspace-selection";
 import {
   refreshInstallationRepositoriesAction,
   removeExpectedContributorAction,
@@ -122,7 +122,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   const resolvedSearchParams = await searchParams;
-  const workspace = await getPrimaryWorkspaceForUser(session.user.id);
+  const workspace = await getSelectedWorkspaceForUser(session.user.id);
   const installUrl = getGitHubAppInstallUrl(workspace.id);
   const [installations, latestSyncRun] = await Promise.all([
     prisma.gitHubInstallation.findMany({
@@ -253,7 +253,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       <div className="page-header">
         <div>
-          <h1 className="page-title">{workspace.name}</h1>
+          <h1 className="page-title">
+            You are in <span className="workspace-title-highlight">{workspace.name}</span>
+          </h1>
           <p className="page-copy">Repository activity dashboard for the last 7 days.</p>
         </div>
         <div className="button-row">

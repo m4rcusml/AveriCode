@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { assertRepositoryWriteAccess, assertWorkspaceWriteAccess, getPrimaryWorkspaceForUser } from "@/lib/workspaces";
+import { getSelectedWorkspaceForUser } from "@/lib/workspace-selection";
+import { assertRepositoryWriteAccess, assertWorkspaceWriteAccess } from "@/lib/workspaces";
 import { getManualSyncCooldown, syncRepositoryActivity } from "@/lib/github/sync";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   const workspace = body.workspaceId
     ? { id: body.workspaceId }
-    : await getPrimaryWorkspaceForUser(session.user.id);
+    : await getSelectedWorkspaceForUser(session.user.id);
 
   try {
     await assertWorkspaceWriteAccess(session.user.id, workspace.id);

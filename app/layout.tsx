@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Activity, Code2, Settings } from "lucide-react";
 import { AuthControls } from "@/components/auth-controls";
 import { NavLink } from "@/components/nav-link";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default function RootLayout({
               </span>
               AveriCode
             </Link>
+            <WorkspaceSwitcher />
             <nav className="nav" aria-label="Primary navigation">
               <NavLink exact href="/dashboard">
                 <Activity aria-hidden size={16} />

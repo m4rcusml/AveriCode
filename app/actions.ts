@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import {
@@ -14,10 +15,14 @@ import {
 import { importInstallationRepositories } from "@/lib/github/installations";
 import { getManualSyncCooldown, syncRepositoryActivity } from "@/lib/github/sync";
 import { prisma } from "@/lib/prisma";
+import { setSelectedWorkspaceForUser, getSelectedWorkspaceForUser } from "@/lib/workspace-selection";
 import {
+  addWorkspaceMember,
   assertRepositoryWriteAccess,
   assertWorkspaceWriteAccess,
-  getPrimaryWorkspaceForUser
+  removeWorkspaceMember,
+  updateWorkspaceMemberRole,
+  workspaceMemberRole
 } from "@/lib/workspaces";
 
 function stringValue(formData: FormData, key: string) {
@@ -28,6 +33,39 @@ function stringValue(formData: FormData, key: string) {
 function returnTo(formData: FormData, fallback: string) {
   const value = stringValue(formData, "returnTo");
   return value.startsWith("/") ? value : fallback;
+}
+
+function safeWorkspaceSwitchPath(pathname: string) {
+  if (pathname === "/settings") {
+    return "/settings";
+  }
+
+  if (pathname === "/dashboard") {
+    return "/dashboard";
+  }
+
+  return "/dashboard";
+}
+
+async function workspaceSwitchDestination(formData: FormData) {
+  const explicit = stringValue(formData, "returnTo");
+
+  if (explicit.startsWith("/")) {
+    return safeWorkspaceSwitchPath(explicit);
+  }
+
+  const referer = (await headers()).get("referer");
+
+  if (!referer) {
+    return "/dashboard";
+  }
+
+  try {
+    const url = new URL(referer);
+    return safeWorkspaceSwitchPath(url.pathname);
+  } catch {
+    return "/dashboard";
+  }
 }
 
 function redirectWithSyncError(
@@ -45,6 +83,43 @@ function redirectWithSyncError(
   }
 
   redirect(`${url.pathname}${url.search}`);
+}
+
+function redirectWithSettingsStatus(destination: string, params: Record<string, string>) {
+  const url = new URL(destination, "http://avericode.local");
+
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  redirect(`${url.pathname}${url.search}`);
+}
+
+function workspaceMemberErrorCode(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "workspace_member_failed";
+  }
+
+  if (error.message === "Workspace user not found.") {
+    return "workspace_member_not_found";
+  }
+
+  if (
+    error.message === "Workspace owner cannot be removed." ||
+    error.message === "Workspace owner role cannot be changed."
+  ) {
+    return "workspace_owner_protected";
+  }
+
+  if (error.message === "Owner or admin role required.") {
+    return "workspace_permission_denied";
+  }
+
+  if (error.message === "User identifier is required.") {
+    return "workspace_member_identifier_required";
+  }
+
+  return "workspace_member_failed";
 }
 
 function isRunningSyncError(error: unknown) {
@@ -95,6 +170,19 @@ export async function toggleRepositoryMonitoringAction(formData: FormData) {
   await setRepositoryMonitoring(user.id, repositoryId, isActive);
   revalidatePath("/dashboard");
   revalidatePath(destination);
+  redirect(destination);
+}
+
+export async function switchWorkspaceAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = stringValue(formData, "workspaceId");
+  const destination = await workspaceSwitchDestination(formData);
+
+  await setSelectedWorkspaceForUser(user.id, workspaceId);
+
+  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/settings");
   redirect(destination);
 }
 
@@ -231,7 +319,7 @@ export async function syncWorkspaceRepositoriesNowAction(formData: FormData) {
   const user = await requireUser();
   const destination = returnTo(formData, "/dashboard");
   const requestedWorkspaceId = stringValue(formData, "workspaceId");
-  const workspace = requestedWorkspaceId ? { id: requestedWorkspaceId } : await getPrimaryWorkspaceForUser(user.id);
+  const workspace = requestedWorkspaceId ? { id: requestedWorkspaceId } : await getSelectedWorkspaceForUser(user.id);
 
   await assertWorkspaceWriteAccess(user.id, workspace.id);
 
@@ -337,4 +425,66 @@ export async function refreshInstallationRepositoriesAction(formData: FormData) 
   revalidatePath("/dashboard");
   revalidatePath("/settings");
   redirect(destination);
+}
+
+export async function addWorkspaceMemberAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = stringValue(formData, "workspaceId");
+  const destination = returnTo(formData, "/settings");
+
+  try {
+    await addWorkspaceMember(
+      user.id,
+      workspaceId,
+      stringValue(formData, "identifier"),
+      workspaceMemberRole(stringValue(formData, "role"))
+    );
+  } catch (error) {
+    redirectWithSettingsStatus(destination, {
+      settings_error: workspaceMemberErrorCode(error)
+    });
+  }
+
+  revalidatePath("/settings");
+  redirectWithSettingsStatus(destination, {
+    settings_success: "workspace_member_added"
+  });
+}
+
+export async function updateWorkspaceMemberRoleAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceMemberId = stringValue(formData, "workspaceMemberId");
+  const destination = returnTo(formData, "/settings");
+
+  try {
+    await updateWorkspaceMemberRole(user.id, workspaceMemberId, workspaceMemberRole(stringValue(formData, "role")));
+  } catch (error) {
+    redirectWithSettingsStatus(destination, {
+      settings_error: workspaceMemberErrorCode(error)
+    });
+  }
+
+  revalidatePath("/settings");
+  redirectWithSettingsStatus(destination, {
+    settings_success: "workspace_member_updated"
+  });
+}
+
+export async function removeWorkspaceMemberAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceMemberId = stringValue(formData, "workspaceMemberId");
+  const destination = returnTo(formData, "/settings");
+
+  try {
+    await removeWorkspaceMember(user.id, workspaceMemberId);
+  } catch (error) {
+    redirectWithSettingsStatus(destination, {
+      settings_error: workspaceMemberErrorCode(error)
+    });
+  }
+
+  revalidatePath("/settings");
+  redirectWithSettingsStatus(destination, {
+    settings_success: "workspace_member_removed"
+  });
 }

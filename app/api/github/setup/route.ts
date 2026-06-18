@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { persistInstallationFromSetup } from "@/lib/github/installations";
-import { getPrimaryWorkspaceForUser, assertWorkspaceWriteAccess } from "@/lib/workspaces";
+import { getSelectedWorkspaceForUser } from "@/lib/workspace-selection";
+import { assertWorkspaceWriteAccess } from "@/lib/workspaces";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
   const stateWorkspaceId = request.nextUrl.searchParams.get("state");
   const workspace = stateWorkspaceId
     ? { id: stateWorkspaceId }
-    : await getPrimaryWorkspaceForUser(session.user.id);
+    : await getSelectedWorkspaceForUser(session.user.id);
 
   try {
     await assertWorkspaceWriteAccess(session.user.id, workspace.id);

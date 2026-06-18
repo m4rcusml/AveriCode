@@ -6,7 +6,7 @@ import { getAuthSession } from "@/lib/auth";
 export async function AuthControls() {
   const session = await getAuthSession();
 
-  if (!session?.user) {
+  if (!session?.user?.id) {
     return (
       <Link className="button button-primary" href="/api/auth/signin">
         <Github aria-hidden size={16} />
