@@ -1,6 +1,7 @@
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { getServerSession, type NextAuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
+import { importOwnerGitHubInstallationsForWorkspace } from "@/lib/github/installations";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultWorkspaceForUser } from "@/lib/workspaces";
 
@@ -59,7 +60,15 @@ export const authOptions: NextAuthOptions = {
         });
       }
 
-      await ensureDefaultWorkspaceForUser(user.id, user.name);
+      const workspace = await ensureDefaultWorkspaceForUser(user.id, user.name);
+
+      if (account?.provider === "github") {
+        try {
+          await importOwnerGitHubInstallationsForWorkspace(user.id, workspace.id);
+        } catch (error) {
+          console.error("Could not import owner GitHub App installations during sign in.", error);
+        }
+      }
     }
   }
 };

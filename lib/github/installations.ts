@@ -1,6 +1,11 @@
 import { GitHubAccountType, RepositorySelection } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getInstallationAccessToken, githubAppRequest, githubRequest } from "@/lib/github/app-auth";
+import {
+  getInstallationAccessToken,
+  GitHubApiError,
+  githubAppRequest,
+  githubRequest
+} from "@/lib/github/app-auth";
 
 type GitHubInstallationResponse = {
   id: number;
@@ -26,6 +31,15 @@ type GitHubRepositoriesResponse = {
   repositories: GitHubRepositoryResponse[];
 };
 
+type GitHubInstallationsResponse = {
+  installations: GitHubInstallationResponse[];
+};
+
+type GitHubOrganizationMembershipResponse = {
+  role: "admin" | "member";
+  state: string;
+};
+
 type ImportedRepository = {
   id: string;
   fullName: string;
@@ -42,6 +56,24 @@ function mapRepositorySelection(selection: GitHubInstallationResponse["repositor
 
 export async function fetchGitHubInstallation(installationId: string) {
   return githubAppRequest<GitHubInstallationResponse>(`/app/installations/${installationId}`);
+}
+
+export async function fetchGitHubAppInstallations() {
+  const installations: GitHubInstallationResponse[] = [];
+
+  for (let page = 1; ; page += 1) {
+    const response = await githubAppRequest<GitHubInstallationsResponse>(
+      `/app/installations?per_page=100&page=${page}`
+    );
+
+    installations.push(...response.installations);
+
+    if (response.installations.length < 100) {
+      break;
+    }
+  }
+
+  return installations;
 }
 
 export async function fetchInstallationRepositories(installationId: string) {
@@ -64,6 +96,43 @@ export async function fetchInstallationRepositories(installationId: string) {
   }
 
   return repositories;
+}
+
+async function isUserOrganizationAdminForInstallation(
+  installationId: string,
+  organization: string,
+  username: string
+) {
+  const token = await getInstallationAccessToken(installationId);
+
+  try {
+    const membership = await githubRequest<GitHubOrganizationMembershipResponse>(
+      `/orgs/${encodeURIComponent(organization)}/memberships/${encodeURIComponent(username)}`,
+      {
+        bearerToken: token
+      }
+    );
+
+    return membership.state === "active" && membership.role === "admin";
+  } catch (error) {
+    if (error instanceof GitHubApiError && [403, 404].includes(error.status)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+async function userOwnsGitHubInstallation(installation: GitHubInstallationResponse, username: string) {
+  if (installation.account.type === "User") {
+    return installation.account.login.toLowerCase() === username.toLowerCase();
+  }
+
+  return isUserOrganizationAdminForInstallation(
+    String(installation.id),
+    installation.account.login,
+    username
+  );
 }
 
 export async function persistInstallationFromSetup(workspaceId: string, installationId: string) {
@@ -98,6 +167,35 @@ export async function persistInstallationFromSetup(workspaceId: string, installa
     importedRepositories,
     newRepositories: importedRepositories.filter((repository) => !repository.wasExisting)
   };
+}
+
+export async function importOwnerGitHubInstallationsForWorkspace(userId: string, workspaceId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      githubUsername: true
+    }
+  });
+  const username = user?.githubUsername;
+
+  if (!username) {
+    return [];
+  }
+
+  const installations = await fetchGitHubAppInstallations();
+  const importedInstallations = [];
+
+  for (const installation of installations) {
+    if (!(await userOwnsGitHubInstallation(installation, username))) {
+      continue;
+    }
+
+    importedInstallations.push(
+      await persistInstallationFromSetup(workspaceId, String(installation.id))
+    );
+  }
+
+  return importedInstallations;
 }
 
 export async function importInstallationRepositories(githubInstallationId: string) {
