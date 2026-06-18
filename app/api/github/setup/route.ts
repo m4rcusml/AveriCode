@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { persistInstallationFromSetup } from "@/lib/github/installations";
-import { getSelectedWorkspaceForUser } from "@/lib/workspace-selection";
+import {
+  clearPendingGitHubSetupWorkspace,
+  getPendingGitHubSetupWorkspaceId,
+  getSelectedWorkspaceForUser,
+  setSelectedWorkspaceForUser
+} from "@/lib/workspace-selection";
 import { assertWorkspaceWriteAccess } from "@/lib/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +33,7 @@ export async function GET(request: NextRequest) {
   const installationId = request.nextUrl.searchParams.get("installation_id");
 
   if (!installationId) {
+    await clearPendingGitHubSetupWorkspace();
     return redirectWithSetupError(request, {
       setup_error: "missing_installation_id",
       setup_action: request.nextUrl.searchParams.get("setup_action") ?? "unknown"
@@ -35,13 +41,17 @@ export async function GET(request: NextRequest) {
   }
 
   const stateWorkspaceId = request.nextUrl.searchParams.get("state");
-  const workspace = stateWorkspaceId
-    ? { id: stateWorkspaceId }
+  const pendingWorkspaceId = await getPendingGitHubSetupWorkspaceId();
+  const setupWorkspaceId = stateWorkspaceId ?? pendingWorkspaceId;
+  const workspace = setupWorkspaceId
+    ? { id: setupWorkspaceId }
     : await getSelectedWorkspaceForUser(session.user.id);
 
   try {
     await assertWorkspaceWriteAccess(session.user.id, workspace.id);
     const result = await persistInstallationFromSetup(workspace.id, installationId);
+    await setSelectedWorkspaceForUser(session.user.id, workspace.id);
+    await clearPendingGitHubSetupWorkspace();
     const nextRepository =
       result.newRepositories.length === 1
         ? result.newRepositories[0]
@@ -59,6 +69,7 @@ export async function GET(request: NextRequest) {
     redirectUrl.searchParams.set("imported", String(result.importedCount));
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
+    await clearPendingGitHubSetupWorkspace();
     const message = error instanceof Error ? error.message : "GitHub setup failed.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
