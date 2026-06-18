@@ -27,21 +27,32 @@ export function GitHubSetupNotice({ imported, setupAction, setupError }: GitHubS
     );
   }
 
-  if (error !== "missing_installation_id") {
+  if (!error) {
     return null;
   }
+
+  const messages: Record<string, { body: string; title: string }> = {
+    missing_github_app_slug: {
+      title: "GitHub App slug is not configured.",
+      body: "Set GITHUB_APP_SLUG before adding repositories."
+    },
+    workspace_permission_denied: {
+      title: "Workspace permission required.",
+      body: "Only workspace owners and admins can connect or update GitHub App access."
+    }
+  };
+  const content = messages[error] ?? {
+    title: "GitHub did not return an installation id.",
+    body:
+      "If you selected an organization where you are not an owner, GitHub may have created an installation request instead of installing the app. Ask an organization owner to approve or install AveriCode, then come back and use Add repositories again."
+  };
 
   return (
     <div className="notice notice-warning">
       <AlertTriangle aria-hidden size={18} />
       <div>
-        <strong>GitHub did not return an installation id.</strong>
-        <p>
-          If you selected an organization where you are not an owner, GitHub may have created an installation
-          request instead of installing the app. Ask an organization owner to approve or install AveriCode, then
-          come back and use Add repositories again.
-          {action ? ` GitHub setup action: ${action}.` : ""}
-        </p>
+        <strong>{content.title}</strong>
+        <p>{content.body}{action ? ` GitHub setup action: ${action}.` : ""}</p>
       </div>
     </div>
   );
