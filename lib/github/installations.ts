@@ -104,12 +104,39 @@ export async function importInstallationRepositories(githubInstallationId: strin
   const installation = await prisma.gitHubInstallation.findUniqueOrThrow({
     where: { id: githubInstallationId }
   });
-  const repositories = await fetchInstallationRepositories(installation.installationId);
+  const [githubInstallation, repositories] = await Promise.all([
+    fetchGitHubInstallation(installation.installationId),
+    fetchInstallationRepositories(installation.installationId)
+  ]);
+  const repositoryIds = repositories.map((repository) => String(repository.id));
+
+  await prisma.gitHubInstallation.update({
+    where: { id: installation.id },
+    data: {
+      accountLogin: githubInstallation.account.login,
+      accountType: mapAccountType(githubInstallation.account.type),
+      repositorySelection: mapRepositorySelection(githubInstallation.repository_selection)
+    }
+  });
+
+  await prisma.repository.deleteMany({
+    where: {
+      githubInstallationId: installation.id,
+      ...(repositoryIds.length > 0
+        ? {
+            githubRepoId: {
+              notIn: repositoryIds
+            }
+          }
+        : {})
+    }
+  });
+
   const existingRepositories = await prisma.repository.findMany({
     where: {
       workspaceId: installation.workspaceId,
       githubRepoId: {
-        in: repositories.map((repository) => String(repository.id))
+        in: repositoryIds
       }
     },
     select: {
