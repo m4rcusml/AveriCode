@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { importInstallationRepositories } from "@/lib/github/installations";
 import { prisma } from "@/lib/prisma";
@@ -152,6 +153,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await handleWebhookEvent(request.headers.get("x-github-event"), payload);
+    revalidatePath("/dashboard");
+    revalidatePath("/settings");
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
