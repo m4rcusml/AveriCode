@@ -402,6 +402,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                           <a
                             className="button button-secondary"
                             href={getGitHubInstallationSettingsUrl(installation)}
+                            rel="noreferrer"
+                            target="_blank"
                           >
                             <Github aria-hidden size={16} />
                             Configure access

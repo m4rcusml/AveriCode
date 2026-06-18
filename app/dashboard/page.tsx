@@ -352,6 +352,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   <a
                     className="button button-secondary"
                     href={getGitHubInstallationSettingsUrl(selectedInstallation)}
+                    rel="noreferrer"
+                    target="_blank"
                   >
                     <Github aria-hidden size={16} />
                     Configure access
@@ -553,6 +555,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                     <a
                       className="button button-primary"
                       href={getGitHubInstallationSettingsUrl(selectedInstallation)}
+                      rel="noreferrer"
+                      target="_blank"
                     >
                       Configure access
                       <ExternalLink aria-hidden size={14} />
