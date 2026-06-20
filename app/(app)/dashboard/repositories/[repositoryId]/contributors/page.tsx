@@ -10,6 +10,7 @@ import {
   toggleRepositoryMonitoringAction
 } from "@/app/actions";
 import { ManualSyncToast } from "@/components/manual-sync-toast";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getAuthSession } from "@/lib/auth";
 import { getRepositoryPeopleSuggestions, type GitHubPersonSuggestion } from "@/lib/github/people";
 import { prisma } from "@/lib/prisma";
@@ -184,10 +185,10 @@ async function ContributorSuggestions({
             <h2 className="section-title">Confirm selected contributors</h2>
             <p className="section-copy">Selections from both lists will be added as expected contributors.</p>
           </div>
-          <button className="button button-primary" type="submit">
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
             <Users aria-hidden size={16} />
             Add selected
-          </button>
+          </PendingSubmitButton>
         </section>
       </form>
     </>
@@ -261,9 +262,9 @@ export default async function RepositoryContributorSetupPage({
             <input name="repositoryId" type="hidden" value={repository.id} />
             <input name="isActive" type="hidden" value={repository.isActive ? "false" : "true"} />
             <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/contributors`} />
-            <button className="button button-primary" type="submit">
+            <PendingSubmitButton className="button button-primary" pendingLabel="Saving...">
               {repository.isActive ? "Deactivate monitoring" : "Activate monitoring"}
-            </button>
+            </PendingSubmitButton>
           </form>
         </div>
       </div>
@@ -290,12 +291,12 @@ export default async function RepositoryContributorSetupPage({
           <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/contributors`} />
           <div className="field">
             <label htmlFor={`username-${repository.id}`}>GitHub username</label>
-            <input id={`username-${repository.id}`} name="username" placeholder="octocat" />
+            <input id={`username-${repository.id}`} name="username" placeholder="octocat" required />
           </div>
-          <button className="button button-primary" type="submit">
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
             <Plus aria-hidden size={16} />
             Add
-          </button>
+          </PendingSubmitButton>
         </form>
       </section>
 
@@ -372,10 +373,10 @@ export default async function RepositoryContributorSetupPage({
                             type="hidden"
                             value={`/dashboard/repositories/${repository.id}/contributors`}
                           />
-                          <button className="button button-secondary" type="submit">
+                          <PendingSubmitButton className="button button-secondary" pendingLabel="Updating...">
                             <CircleSlash aria-hidden size={16} />
                             {repositoryContributor.isIgnored ? "Restore" : "Ignore"}
-                          </button>
+                          </PendingSubmitButton>
                         </form>
                         <form action={removeExpectedContributorAction}>
                           <input name="repositoryContributorId" type="hidden" value={repositoryContributor.id} />
@@ -384,10 +385,10 @@ export default async function RepositoryContributorSetupPage({
                             type="hidden"
                             value={`/dashboard/repositories/${repository.id}/contributors`}
                           />
-                          <button className="button button-danger" type="submit">
+                          <PendingSubmitButton className="button button-danger" pendingLabel="Removing...">
                             <Trash2 aria-hidden size={16} />
                             Remove
-                          </button>
+                          </PendingSubmitButton>
                         </form>
                       </div>
                     </td>

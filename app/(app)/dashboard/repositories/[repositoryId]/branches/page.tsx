@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { AlertTriangle, GitBranch, Plus, Trash2, Users } from "lucide-react";
 import { addRepositoryBranchesAction, removeRepositoryBranchAction } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getAuthSession } from "@/lib/auth";
 import { getInstallationAccessToken } from "@/lib/github/app-auth";
 import { fetchRepositoryBranches } from "@/lib/github/commits";
@@ -113,10 +114,10 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
             <h2 className="section-title">Add selected branches</h2>
             <p className="section-copy">Future syncs will include commits from the selected branches.</p>
           </div>
-          <button className="button button-primary" type="submit">
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
             <Plus aria-hidden size={16} />
             Add selected
-          </button>
+          </PendingSubmitButton>
         </section>
       ) : null}
     </form>
@@ -207,10 +208,10 @@ export default async function RepositoryBranchesPage({ params }: RepositoryBranc
               <form action={removeRepositoryBranchAction}>
                 <input name="repositoryBranchId" type="hidden" value={branch.id} />
                 <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/branches`} />
-                <button className="button button-danger" type="submit">
+                <PendingSubmitButton className="button button-danger" pendingLabel="Removing...">
                   <Trash2 aria-hidden size={16} />
                   Remove
-                </button>
+                </PendingSubmitButton>
               </form>
             </div>
           ))}
