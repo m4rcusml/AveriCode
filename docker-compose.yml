@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: avericode-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: avericode
+      POSTGRES_USER: avericode
+      POSTGRES_PASSWORD: avericode
+    ports:
+      - "5432:5432"
+    volumes:
+      - avericode-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avericode -d avericode"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: avericode-ngrok
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command:
+      - http
+      - host.docker.internal:3000
+    ports:
+      - "4040:4040"
+
+volumes:
+  avericode-postgres-data:
