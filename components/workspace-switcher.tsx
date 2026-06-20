@@ -16,7 +16,7 @@ export async function WorkspaceSwitcher() {
 
   return (
     <details className="workspace-switcher">
-      <summary className="workspace-switcher-trigger" title="Switch workspace">
+      <summary aria-label="Switch workspace" className="workspace-switcher-trigger" title="Switch workspace">
         <PanelsTopLeft aria-hidden size={16} />
         <span>{selectedWorkspace.name}</span>
         <ChevronDown aria-hidden size={15} />

@@ -62,12 +62,12 @@ export function ContributorRow({ contributor, returnTo }: ContributorRowProps) {
         >
           <MoreHorizontal aria-hidden size={18} />
         </summary>
-        <div className="action-menu" role="menu">
+        <div className="action-menu" aria-label={`Actions for ${contributor.name}`}>
           <form action={toggleIgnoredContributorAction}>
             <input name="repositoryContributorId" type="hidden" value={contributor.id} />
             <input name="isIgnored" type="hidden" value={contributor.isIgnored ? "false" : "true"} />
             <input name="returnTo" type="hidden" value={returnTo} />
-            <PendingSubmitButton className="action-menu-item" pendingLabel="Updating..." role="menuitem">
+            <PendingSubmitButton className="action-menu-item" pendingLabel="Updating...">
               {contributor.isIgnored ? (
                 <RotateCcw aria-hidden size={16} />
               ) : (
@@ -82,7 +82,6 @@ export function ContributorRow({ contributor, returnTo }: ContributorRowProps) {
             <PendingSubmitButton
               className="action-menu-item action-menu-item-danger"
               pendingLabel="Deleting..."
-              role="menuitem"
             >
               <Trash2 aria-hidden size={16} />
               Delete
