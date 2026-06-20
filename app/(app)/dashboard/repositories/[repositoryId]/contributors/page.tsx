@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 import { AlertTriangle, CircleSlash, Plus, Trash2, Users } from "lucide-react";
 import {
   addExpectedContributorAction,
@@ -106,6 +107,93 @@ function SuggestionTable({
   );
 }
 
+function ContributorSuggestionsFallback() {
+  return (
+    <section className="section skeleton-section" aria-busy="true" aria-label="Loading contributor suggestions">
+      <div className="skeleton-line skeleton-line-short" />
+      <div className="skeleton-line" />
+      <div className="skeleton-line" />
+    </section>
+  );
+}
+
+async function ContributorSuggestions({
+  alreadyExpectedIds,
+  repositoryId
+}: {
+  alreadyExpectedIds: string[];
+  repositoryId: string;
+}) {
+  const suggestions = await getRepositoryPeopleSuggestions(repositoryId);
+  const alreadyExpectedIdSet = new Set(alreadyExpectedIds);
+
+  return (
+    <>
+      {suggestions.errors.map((error) => (
+        <div className="notice notice-warning" key={error}>
+          <AlertTriangle aria-hidden size={18} />
+          <div>
+            <strong>GitHub suggestion warning</strong>
+            <p>{error}</p>
+          </div>
+        </div>
+      ))}
+
+      <form action={confirmExpectedContributorsAction}>
+        <input name="repositoryId" type="hidden" value={repositoryId} />
+        <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repositoryId}/contributors`} />
+
+        <section className="section">
+          <div className="section-header">
+            <div>
+              <h2 className="section-title">AveriCode suggestions</h2>
+              <p className="section-copy">
+                Users with repository access who have already committed to this repository. They are selected by
+                default.
+              </p>
+            </div>
+          </div>
+          <SuggestionTable
+            alreadyExpectedIds={alreadyExpectedIdSet}
+            defaultChecked
+            people={suggestions.suggestedContributors}
+            title="AveriCode suggestions"
+          />
+        </section>
+
+        <section className="section">
+          <div className="section-header">
+            <div>
+              <h2 className="section-title">Access without contributions</h2>
+              <p className="section-copy">
+                Users with repository access who are not listed in the repository contributor history. Select any
+                additional people who should be expected.
+              </p>
+            </div>
+          </div>
+          <SuggestionTable
+            alreadyExpectedIds={alreadyExpectedIdSet}
+            defaultChecked={false}
+            people={suggestions.accessWithoutContributions}
+            title="Access without contributions"
+          />
+        </section>
+
+        <section className="section action-section">
+          <div>
+            <h2 className="section-title">Confirm selected contributors</h2>
+            <p className="section-copy">Selections from both lists will be added as expected contributors.</p>
+          </div>
+          <button className="button button-primary" type="submit">
+            <Users aria-hidden size={16} />
+            Add selected
+          </button>
+        </section>
+      </form>
+    </>
+  );
+}
+
 export default async function RepositoryContributorSetupPage({
   params,
   searchParams
@@ -142,12 +230,9 @@ export default async function RepositoryContributorSetupPage({
 
   await assertWorkspaceAccess(session.user.id, repository.workspaceId);
 
-  const suggestions = await getRepositoryPeopleSuggestions(repository.id);
-  const alreadyExpectedIds = new Set(
-    repository.contributors
-      .map((repositoryContributor) => repositoryContributor.contributor.githubUserId)
-      .filter((githubUserId): githubUserId is string => Boolean(githubUserId))
-  );
+  const alreadyExpectedIds = repository.contributors
+    .map((repositoryContributor) => repositoryContributor.contributor.githubUserId)
+    .filter((githubUserId): githubUserId is string => Boolean(githubUserId));
 
   return (
     <main className="page">
@@ -193,16 +278,6 @@ export default async function RepositoryContributorSetupPage({
         </div>
       ) : null}
 
-      {suggestions.errors.map((error) => (
-        <div className="notice notice-warning" key={error}>
-          <AlertTriangle aria-hidden size={18} />
-          <div>
-            <strong>GitHub suggestion warning</strong>
-            <p>{error}</p>
-          </div>
-        </div>
-      ))}
-
       <section className="repo-item">
         <div className="repo-item-header">
           <div>
@@ -224,57 +299,9 @@ export default async function RepositoryContributorSetupPage({
         </form>
       </section>
 
-      <form action={confirmExpectedContributorsAction}>
-        <input name="repositoryId" type="hidden" value={repository.id} />
-        <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/contributors`} />
-
-        <section className="section">
-          <div className="section-header">
-            <div>
-              <h2 className="section-title">AveriCode suggestions</h2>
-              <p className="section-copy">
-                Users with repository access who have already committed to this repository. They are selected by
-                default.
-              </p>
-            </div>
-          </div>
-          <SuggestionTable
-            alreadyExpectedIds={alreadyExpectedIds}
-            defaultChecked
-            people={suggestions.suggestedContributors}
-            title="AveriCode suggestions"
-          />
-        </section>
-
-        <section className="section">
-          <div className="section-header">
-            <div>
-              <h2 className="section-title">Access without contributions</h2>
-              <p className="section-copy">
-                Users with repository access who are not listed in the repository contributor history. Select any
-                additional people who should be expected.
-              </p>
-            </div>
-          </div>
-          <SuggestionTable
-            alreadyExpectedIds={alreadyExpectedIds}
-            defaultChecked={false}
-            people={suggestions.accessWithoutContributions}
-            title="Access without contributions"
-          />
-        </section>
-
-        <section className="section action-section">
-          <div>
-            <h2 className="section-title">Confirm selected contributors</h2>
-            <p className="section-copy">Selections from both lists will be added as expected contributors.</p>
-          </div>
-          <button className="button button-primary" type="submit">
-            <Users aria-hidden size={16} />
-            Add selected
-          </button>
-        </section>
-      </form>
+      <Suspense fallback={<ContributorSuggestionsFallback />}>
+        <ContributorSuggestions alreadyExpectedIds={alreadyExpectedIds} repositoryId={repository.id} />
+      </Suspense>
 
       <section className="section">
         <div className="section-header">
