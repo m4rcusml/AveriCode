@@ -17,10 +17,18 @@ It uses GitHub OAuth for user login and a GitHub App for persistent repository a
 
 ## Local Setup
 
+Use Node.js 20.9 or newer. Next.js 16 requires this minimum runtime.
+
 1. Install dependencies:
 
 ```bash
 npm install
+```
+
+For E2E testing, install the Playwright Chromium browser once:
+
+```bash
+npx playwright install chromium
 ```
 
 2. Copy `.env.example` to `.env` and fill the required values:
@@ -202,7 +210,10 @@ By default, sync monitors the repository default branch. Users can configure add
 npm run dev
 npm run build
 npm run lint
+npm run test:e2e
 npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:studio
 ```
+
+`npm run test:e2e` builds the app, starts `next start` on `http://127.0.0.1:3000`, and runs Playwright smoke tests. Public unauthenticated tests run by default. Authenticated dashboard/settings tests are skipped unless `E2E_AUTH_STATE` points to a Playwright storage state file for a seeded signed-in user.
