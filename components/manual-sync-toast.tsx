@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, X } from "lucide-react";
@@ -93,23 +93,20 @@ export function ManualSyncToast({
                   }
                 : null;
   const hasContent = Boolean(content);
-  const [isVisible, setIsVisible] = useState(Boolean(content));
 
   useEffect(() => {
     if (!hasContent) {
       return;
     }
 
-    setIsVisible(true);
     const timeout = window.setTimeout(() => {
-      setIsVisible(false);
       router.replace(dismissHref, { scroll: false });
     }, 6000);
 
     return () => window.clearTimeout(timeout);
   }, [contentKey, dismissHref, hasContent, router]);
 
-  if (!content || !isVisible) {
+  if (!content) {
     return null;
   }
 
