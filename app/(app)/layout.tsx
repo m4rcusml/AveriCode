@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Activity, Code2, Settings } from "lucide-react";
+import { Activity, Settings } from "lucide-react";
 import { AuthControls } from "@/components/auth-controls";
 import { NavLink } from "@/components/nav-link";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -13,9 +14,7 @@ export default function AppLayout({
     <div className="app-shell">
       <header className="topbar">
         <Link className="brand" href="/dashboard">
-          <span className="brand-mark">
-            <Code2 aria-hidden size={19} />
-          </span>
+          <Image alt="" aria-hidden className="brand-logo" height={34} priority src="/logo.svg" width={42} />
           AveriCode
         </Link>
         <WorkspaceSwitcher />

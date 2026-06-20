@@ -7,6 +7,10 @@ const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   applicationName: "AveriCode",
   metadataBase: new URL(appUrl),
+  icons: {
+    icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
+    shortcut: ["/logo.svg"]
+  },
   title: {
     default: "AveriCode",
     template: "%s | AveriCode"

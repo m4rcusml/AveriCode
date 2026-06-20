@@ -81,6 +81,13 @@ select {
   background: var(--primary);
 }
 
+.brand-logo {
+  display: block;
+  width: 42px;
+  height: 34px;
+  object-fit: contain;
+}
+
 .nav {
   display: flex;
   align-items: center;
