@@ -1,5 +1,6 @@
 import { ChevronDown, PanelsTopLeft } from "lucide-react";
 import { switchWorkspaceAction } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getAuthSession } from "@/lib/auth";
 import { getSelectedWorkspaceForUser, getWorkspaceOptionsForUser } from "@/lib/workspace-selection";
 
@@ -15,7 +16,7 @@ export async function WorkspaceSwitcher() {
 
   return (
     <details className="workspace-switcher">
-      <summary className="workspace-switcher-trigger" title="Switch workspace">
+      <summary aria-label="Switch workspace" className="workspace-switcher-trigger" title="Switch workspace">
         <PanelsTopLeft aria-hidden size={16} />
         <span>{selectedWorkspace.name}</span>
         <ChevronDown aria-hidden size={15} />
@@ -28,17 +29,25 @@ export async function WorkspaceSwitcher() {
           return (
             <form action={switchWorkspaceAction} key={membership.id}>
               <input name="workspaceId" type="hidden" value={membership.workspaceId} />
-              <button
+              <PendingSubmitButton
                 aria-current={selected ? "true" : undefined}
                 className={`workspace-option ${selected ? "workspace-option-active" : ""}`}
-                type="submit"
+                pendingLabel={
+                  <>
+                    <span>
+                      <strong>Switching...</strong>
+                      <small>{membership.role}</small>
+                    </span>
+                    <span className="pill">{membership.workspace._count.repositories}</span>
+                  </>
+                }
               >
                 <span>
                   <strong>{membership.workspace.name}</strong>
                   <small>{membership.role}</small>
                 </span>
                 <span className="pill">{membership.workspace._count.repositories}</span>
-              </button>
+              </PendingSubmitButton>
             </form>
           );
         })}

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 import { AlertTriangle, GitBranch, Plus, Trash2, Users } from "lucide-react";
 import { addRepositoryBranchesAction, removeRepositoryBranchAction } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getAuthSession } from "@/lib/auth";
 import { getInstallationAccessToken } from "@/lib/github/app-auth";
 import { fetchRepositoryBranches } from "@/lib/github/commits";
@@ -16,9 +18,110 @@ type RepositoryBranchesPageProps = {
   }>;
 };
 
+type AvailableBranchesFormProps = {
+  monitoredBranchNames: string[];
+  repository: {
+    id: string;
+    installationId: string;
+    name: string;
+    owner: string;
+  };
+};
+
 function normalizeBranchName(value: string | null | undefined) {
   const cleaned = value?.trim();
   return cleaned ? cleaned : null;
+}
+
+function AvailableBranchesFallback() {
+  return (
+    <section className="section skeleton-section" aria-busy="true" aria-label="Loading available branches">
+      <div className="skeleton-line skeleton-line-short" />
+      <div className="skeleton-line" />
+      <div className="skeleton-line" />
+    </section>
+  );
+}
+
+async function AvailableBranchesForm({ monitoredBranchNames, repository }: AvailableBranchesFormProps) {
+  let availableBranches: Array<{ name: string }> = [];
+  let branchLoadError: string | null = null;
+  const monitoredBranches = new Set(monitoredBranchNames);
+
+  try {
+    const token = await getInstallationAccessToken(repository.installationId);
+    const githubBranches = await fetchRepositoryBranches({
+      owner: repository.owner,
+      name: repository.name,
+      token
+    });
+
+    availableBranches = githubBranches.filter((branch) => !monitoredBranches.has(branch.name));
+  } catch (error) {
+    branchLoadError = error instanceof Error ? error.message : "Could not load branches from GitHub.";
+  }
+
+  if (branchLoadError) {
+    return (
+      <div className="notice notice-warning">
+        <AlertTriangle aria-hidden size={18} />
+        <div>
+          <strong>Could not load available branches</strong>
+          <p>{branchLoadError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form action={addRepositoryBranchesAction}>
+      <input name="repositoryId" type="hidden" value={repository.id} />
+      <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/branches`} />
+
+      <section className="section">
+        <div className="section-header">
+          <div>
+            <h2 className="section-title">Available branches</h2>
+            <p className="section-copy">Select branches that are not currently monitored.</p>
+          </div>
+        </div>
+
+        {availableBranches.length === 0 ? (
+          <div className="empty-state">
+            <div>
+              <h3>No available branches</h3>
+              <p>All GitHub branches returned for this repository are already monitored.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="branch-list">
+            {availableBranches.map((branch) => (
+              <label className="branch-row branch-row-selectable" key={branch.name}>
+                <div>
+                  <div className="cell-title">{branch.name}</div>
+                  <div className="cell-subtitle">Available on GitHub</div>
+                </div>
+                <input name="selectedBranch" type="checkbox" value={branch.name} />
+              </label>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {availableBranches.length > 0 ? (
+        <section className="section action-section">
+          <div>
+            <h2 className="section-title">Add selected branches</h2>
+            <p className="section-copy">Future syncs will include commits from the selected branches.</p>
+          </div>
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
+            <Plus aria-hidden size={16} />
+            Add selected
+          </PendingSubmitButton>
+        </section>
+      ) : null}
+    </form>
+  );
 }
 
 export default async function RepositoryBranchesPage({ params }: RepositoryBranchesPageProps) {
@@ -47,26 +150,11 @@ export default async function RepositoryBranchesPage({ params }: RepositoryBranc
 
   await assertWorkspaceAccess(session.user.id, repository.workspaceId);
 
-  let availableBranches: Array<{ name: string }> = [];
-  let branchLoadError: string | null = null;
   const defaultBranch = normalizeBranchName(repository.defaultBranch);
-  const monitoredBranchNames = new Set([
+  const monitoredBranchNames = [
     defaultBranch,
     ...repository.branches.map((branch) => branch.name)
-  ].filter((branchName): branchName is string => Boolean(branchName)));
-
-  try {
-    const token = await getInstallationAccessToken(repository.installation.installationId);
-    const githubBranches = await fetchRepositoryBranches({
-      owner: repository.owner,
-      name: repository.name,
-      token
-    });
-
-    availableBranches = githubBranches.filter((branch) => !monitoredBranchNames.has(branch.name));
-  } catch (error) {
-    branchLoadError = error instanceof Error ? error.message : "Could not load branches from GitHub.";
-  }
+  ].filter((branchName): branchName is string => Boolean(branchName));
 
   return (
     <main className="page">
@@ -88,16 +176,6 @@ export default async function RepositoryBranchesPage({ params }: RepositoryBranc
           </Link>
         </div>
       </div>
-
-      {branchLoadError ? (
-        <div className="notice notice-warning">
-          <AlertTriangle aria-hidden size={18} />
-          <div>
-            <strong>Could not load available branches</strong>
-            <p>{branchLoadError}</p>
-          </div>
-        </div>
-      ) : null}
 
       <section className="section">
         <div className="section-header">
@@ -130,10 +208,10 @@ export default async function RepositoryBranchesPage({ params }: RepositoryBranc
               <form action={removeRepositoryBranchAction}>
                 <input name="repositoryBranchId" type="hidden" value={branch.id} />
                 <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/branches`} />
-                <button className="button button-danger" type="submit">
+                <PendingSubmitButton className="button button-danger" pendingLabel="Removing...">
                   <Trash2 aria-hidden size={16} />
                   Remove
-                </button>
+                </PendingSubmitButton>
               </form>
             </div>
           ))}
@@ -149,53 +227,17 @@ export default async function RepositoryBranchesPage({ params }: RepositoryBranc
         </div>
       </section>
 
-      <form action={addRepositoryBranchesAction}>
-        <input name="repositoryId" type="hidden" value={repository.id} />
-        <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/branches`} />
-
-        <section className="section">
-          <div className="section-header">
-            <div>
-              <h2 className="section-title">Available branches</h2>
-              <p className="section-copy">Select branches that are not currently monitored.</p>
-            </div>
-          </div>
-
-          {branchLoadError ? null : availableBranches.length === 0 ? (
-            <div className="empty-state">
-              <div>
-                <h3>No available branches</h3>
-                <p>All GitHub branches returned for this repository are already monitored.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="branch-list">
-              {availableBranches.map((branch) => (
-                <label className="branch-row branch-row-selectable" key={branch.name}>
-                  <div>
-                    <div className="cell-title">{branch.name}</div>
-                    <div className="cell-subtitle">Available on GitHub</div>
-                  </div>
-                  <input name="selectedBranch" type="checkbox" value={branch.name} />
-                </label>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {!branchLoadError && availableBranches.length > 0 ? (
-          <section className="section action-section">
-            <div>
-              <h2 className="section-title">Add selected branches</h2>
-              <p className="section-copy">Future syncs will include commits from the selected branches.</p>
-            </div>
-            <button className="button button-primary" type="submit">
-              <Plus aria-hidden size={16} />
-              Add selected
-            </button>
-          </section>
-        ) : null}
-      </form>
+      <Suspense fallback={<AvailableBranchesFallback />}>
+        <AvailableBranchesForm
+          monitoredBranchNames={monitoredBranchNames}
+          repository={{
+            id: repository.id,
+            installationId: repository.installation.installationId,
+            name: repository.name,
+            owner: repository.owner
+          }}
+        />
+      </Suspense>
     </main>
   );
 }

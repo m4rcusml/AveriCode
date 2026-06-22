@@ -23,18 +23,17 @@ export function InstallationToolbar({
 }: InstallationToolbarProps) {
   return (
     <section className="dashboard-toolbar" aria-label="GitHub account filters">
-      <div className="tab-bar" role="tablist">
+      <nav className="tab-bar" aria-label="GitHub accounts">
         {tabInstallations.map((installation) => {
           const selected = installation.id === selectedInstallation?.id;
           const AccountIcon = installation.accountType === "USER" ? UserRound : Building2;
 
           return (
             <Link
-              aria-selected={selected}
+              aria-current={selected ? "page" : undefined}
               className={`tab-item ${selected ? "tab-item-active" : ""}`}
               href={dashboardHref(installation.id)}
               key={installation.id}
-              role="tab"
             >
               <AccountIcon aria-hidden size={16} />
               <span>{installation.accountLogin}</span>
@@ -42,7 +41,7 @@ export function InstallationToolbar({
             </Link>
           );
         })}
-      </div>
+      </nav>
       <div className="button-row">
         {selectedInstallation ? (
           <>
