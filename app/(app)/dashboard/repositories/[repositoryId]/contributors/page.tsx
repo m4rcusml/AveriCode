@@ -6,8 +6,7 @@ import {
   addExpectedContributorAction,
   confirmExpectedContributorsAction,
   removeExpectedContributorAction,
-  toggleIgnoredContributorAction,
-  toggleRepositoryMonitoringAction
+  toggleIgnoredContributorAction
 } from "@/app/actions";
 import { ManualSyncToast } from "@/components/manual-sync-toast";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -258,14 +257,6 @@ export default async function RepositoryContributorSetupPage({
           <Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/branches`}>
             Branches
           </Link>
-          <form action={toggleRepositoryMonitoringAction}>
-            <input name="repositoryId" type="hidden" value={repository.id} />
-            <input name="isActive" type="hidden" value={repository.isActive ? "false" : "true"} />
-            <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/contributors`} />
-            <PendingSubmitButton className="button button-primary" pendingLabel="Saving...">
-              {repository.isActive ? "Deactivate monitoring" : "Activate monitoring"}
-            </PendingSubmitButton>
-          </form>
         </div>
       </div>
 

@@ -1,10 +1,13 @@
 import { ActivityStatus, Prisma, SyncTrigger } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { findOrCreateContributor } from "@/lib/contributors";
 import { getLastSevenDayPeriod } from "@/lib/dates";
 import { getInstallationAccessToken } from "@/lib/github/app-auth";
 import { fetchRepositoryCommits, type GitHubCommitWithBranch } from "@/lib/github/commits";
+import { isScheduledSyncDue, syncScheduleIntervalMs } from "@/lib/sync-schedule";
 
 export const MANUAL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const RUNNING_SYNC_STALE_MS = 30 * 60 * 1000;
 
 type ContributorInput = {
   githubUserId?: string | null;
@@ -66,41 +69,6 @@ function contributorIdentity(input: ContributorInput) {
   }
 
   return null;
-}
-
-function contributorWriteData(input: ContributorInput) {
-  return {
-    githubUserId: input.githubUserId ?? undefined,
-    username: input.username ?? undefined,
-    name: input.name ?? undefined,
-    avatarUrl: input.avatarUrl ?? undefined,
-    email: input.email ?? undefined
-  };
-}
-
-async function findOrCreateContributor(input: ContributorInput) {
-  const data = contributorWriteData(input);
-
-  const existing = await prisma.contributor.findFirst({
-    where: {
-      OR: [
-        input.githubUserId ? { githubUserId: input.githubUserId } : undefined,
-        input.email ? { email: input.email } : undefined,
-        input.username ? { username: input.username } : undefined
-      ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition))
-    }
-  });
-
-  if (existing) {
-    return prisma.contributor.update({
-      where: { id: existing.id },
-      data
-    });
-  }
-
-  return prisma.contributor.create({
-    data
-  });
 }
 
 function getCommitDate(commit: GitHubCommitWithBranch) {
@@ -180,6 +148,23 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
     throw new Error("Repository not found.");
   }
 
+  const staleBefore = new Date(Date.now() - RUNNING_SYNC_STALE_MS);
+
+  await prisma.syncRun.updateMany({
+    where: {
+      repositoryId: repository.id,
+      status: "RUNNING",
+      startedAt: {
+        lt: staleBefore
+      }
+    },
+    data: {
+      status: "FAILED",
+      finishedAt: new Date(),
+      error: "Sync was marked as failed after exceeding the running timeout."
+    }
+  });
+
   const runningSync = await prisma.syncRun.findFirst({
     where: {
       repositoryId: repository.id,
@@ -191,14 +176,27 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
     throw new Error("A sync is already running for this repository.");
   }
 
-  const syncRun = await prisma.syncRun.create({
-    data: {
-      workspaceId: repository.workspaceId,
-      repositoryId: repository.id,
-      trigger: input.trigger,
-      status: "RUNNING"
+  let syncRun;
+
+  try {
+    syncRun = await prisma.syncRun.create({
+      data: {
+        workspaceId: repository.workspaceId,
+        repositoryId: repository.id,
+        trigger: input.trigger,
+        status: "RUNNING"
+      }
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new Error("A sync is already running for this repository.");
     }
-  });
+
+    throw error;
+  }
 
   try {
     const { periodStart, periodEnd } = getLastSevenDayPeriod();
@@ -371,6 +369,71 @@ export async function syncActiveRepositories(input: SyncActiveRepositoriesInput)
     total: repositories.length,
     succeeded: results.filter((result) => result.ok).length,
     failed: results.filter((result) => !result.ok).length,
+    results
+  };
+}
+
+export async function syncScheduledWorkspaces(now = new Date()) {
+  const workspaces = await prisma.workspace.findMany({
+    where: {
+      repositories: {
+        some: {
+          isActive: true
+        }
+      }
+    },
+    select: {
+      id: true,
+      syncSchedule: true,
+      lastScheduledSyncAt: true
+    },
+    orderBy: {
+      createdAt: "asc"
+    }
+  });
+  const results = [];
+
+  for (const workspace of workspaces) {
+    if (!isScheduledSyncDue(workspace.syncSchedule, workspace.lastScheduledSyncAt, now)) {
+      continue;
+    }
+
+    const dueBefore = new Date(now.getTime() - syncScheduleIntervalMs(workspace.syncSchedule));
+    const claimed = await prisma.workspace.updateMany({
+      where: {
+        id: workspace.id,
+        syncSchedule: workspace.syncSchedule,
+        OR: [
+          { lastScheduledSyncAt: null },
+          {
+            lastScheduledSyncAt: {
+              lte: dueBefore
+            }
+          }
+        ]
+      },
+      data: {
+        lastScheduledSyncAt: now
+      }
+    });
+
+    if (claimed.count === 0) {
+      continue;
+    }
+
+    results.push({
+      workspaceId: workspace.id,
+      schedule: workspace.syncSchedule,
+      result: await syncActiveRepositories({
+        workspaceId: workspace.id,
+        trigger: "CRON"
+      })
+    });
+  }
+
+  return {
+    checkedWorkspaces: workspaces.length,
+    syncedWorkspaces: results.length,
     results
   };
 }

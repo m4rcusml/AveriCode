@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { syncActiveRepositories } from "@/lib/github/sync";
+import { syncScheduledWorkspaces } from "@/lib/github/sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -11,11 +11,7 @@ async function handler(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const result = await syncActiveRepositories({
-    trigger: "CRON"
-  });
-
-  return NextResponse.json(result);
+  return NextResponse.json(await syncScheduledWorkspaces());
 }
 
 export async function GET(request: NextRequest) {

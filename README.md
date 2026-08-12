@@ -12,7 +12,7 @@ It uses GitHub OAuth for user login and a GitHub App for persistent repository a
 - Prisma
 - NextAuth/Auth.js with GitHub OAuth
 - GitHub App installation tokens for repository access
-- Vercel Cron at `0 9 * * 1`
+- Daily Vercel Cron dispatcher at `0 9 * * *`, with per-workspace frequency controls
 - GitHub App webhooks for installation/repository access changes
 
 ## Local Setup
@@ -154,12 +154,13 @@ Apply database migrations before or during deployment using your chosen migratio
 4. User clicks Add repositories.
 5. AveriCode routes through `/api/github/install?workspaceId=...` to remember the target workspace.
 6. GitHub redirects to `/api/github/setup?installation_id=...`.
-7. AveriCode persists the installation and imports repositories.
-8. User activates repositories to monitor.
-9. User configures expected contributors per repository.
-10. User optionally configures extra monitored branches.
-11. User runs manual sync or waits for the weekly Vercel Cron.
-12. Dashboard reads saved PostgreSQL snapshots only.
+7. AveriCode persists the installation and imports repositories as automatically monitored.
+8. AveriCode adds repository collaborators/contributors as expected contributors.
+9. AveriCode adds up to five recently changed non-default branches from the previous two weeks.
+10. User removes people who should not be expected and can add more branches when needed.
+11. User runs manual sync or waits for the configured workspace schedule.
+12. Workspace owners can choose daily, weekly, biweekly, or monthly scheduled syncs in Settings.
+13. Dashboard reads saved PostgreSQL snapshots only.
 
 ## Multi-Workspace Installation Behavior
 
@@ -188,21 +189,21 @@ Inactive means:
 An expected repository contributor had zero commits in the last 7 days.
 ```
 
-Therefore each monitored repository needs explicit expected contributors. AveriCode does not infer inactivity only from recent commit authors.
+Expected contributors are configured explicitly. New repositories start with GitHub collaborators and contributors selected automatically; users can remove people who should not be expected.
 
-By default, sync monitors the repository default branch. Users can configure additional branches per repository. Dashboard snapshots include the branch of the latest commit when available.
+By default, sync monitors the repository default branch plus up to five non-default branches with changes in the previous two weeks. Users can configure additional branches per repository. Dashboard snapshots include the branch of the latest commit when available.
 
 ## Important Routes
 
 - `/dashboard` - saved activity snapshots, repository controls, and manual sync
 - `/dashboard/repositories/[repositoryId]/contributors` - expected contributor configuration per repository
 - `/dashboard/repositories/[repositoryId]/branches` - monitored branch configuration per repository
-- `/settings` - workspace members, GitHub accounts, repository counts, and system configuration checks
+- `/settings` - workspace members, GitHub accounts, repository counts, and scheduled sync frequency
 - `/api/github/install` - internal GitHub App install redirect that remembers the workspace
 - `/api/github/setup` - GitHub App setup callback
 - `/api/github/sync-now` - protected manual sync API
 - `/api/github/webhook` - GitHub App webhook endpoint
-- `/api/cron/weekly-sync` - scheduled sync endpoint
+- `/api/cron/scheduled-sync` - daily dispatcher for due workspace syncs
 
 ## Scripts
 
@@ -210,6 +211,7 @@ By default, sync monitors the repository default branch. Users can configure add
 npm run dev
 npm run build
 npm run lint
+npm test
 npm run test:e2e
 npm run prisma:generate
 npm run prisma:migrate

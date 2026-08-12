@@ -16,7 +16,64 @@ type RepositoryBranchesPageProps = {
   params: Promise<{
     repositoryId: string;
   }>;
+  searchParams?: Promise<{
+    branch_error?: string | string[];
+    branch_success?: string | string[];
+  }>;
 };
+
+function firstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function BranchActionNotice({
+  error,
+  success
+}: {
+  error?: string | string[];
+  success?: string | string[];
+}) {
+  const errorCode = firstValue(error);
+  const successCode = firstValue(success);
+
+  if (errorCode) {
+    const messages: Record<string, string> = {
+      workspace_permission_denied: "Only workspace owners and admins can configure branches.",
+      branches_add_failed: "The selected branches could not be added. Try refreshing the GitHub branch list.",
+      branch_remove_failed: "This branch could not be removed from monitoring."
+    };
+
+    return (
+      <div className="notice notice-warning">
+        <AlertTriangle aria-hidden size={18} />
+        <div>
+          <strong>Branch configuration was not updated</strong>
+          <p>{messages[errorCode] ?? "Could not update monitored branches."}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!successCode) {
+    return null;
+  }
+
+  const messages: Record<string, string> = {
+    branches_added: "Selected branches were added to monitoring.",
+    branch_removed: "The branch was removed from monitoring.",
+    no_branches_selected: "No additional branches were selected."
+  };
+
+  return (
+    <div className="notice notice-success">
+      <GitBranch aria-hidden size={18} />
+      <div>
+        <strong>Branch configuration updated</strong>
+        <p>{messages[successCode] ?? "Monitored branches were updated."}</p>
+      </div>
+    </div>
+  );
+}
 
 type AvailableBranchesFormProps = {
   monitoredBranchNames: string[];
@@ -124,7 +181,10 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
   );
 }
 
-export default async function RepositoryBranchesPage({ params }: RepositoryBranchesPageProps) {
+export default async function RepositoryBranchesPage({
+  params,
+  searchParams
+}: RepositoryBranchesPageProps) {
   const session = await getAuthSession();
 
   if (!session?.user?.id) {
@@ -132,6 +192,7 @@ export default async function RepositoryBranchesPage({ params }: RepositoryBranc
   }
 
   const { repositoryId } = await params;
+  const resolvedSearchParams = await searchParams;
   const repository = await prisma.repository.findUnique({
     where: { id: repositoryId },
     include: {
@@ -158,6 +219,10 @@ export default async function RepositoryBranchesPage({ params }: RepositoryBranc
 
   return (
     <main className="page">
+      <BranchActionNotice
+        error={resolvedSearchParams?.branch_error}
+        success={resolvedSearchParams?.branch_success}
+      />
       <div className="page-header">
         <div>
           <h1 className="page-title">Monitor branches</h1>

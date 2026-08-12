@@ -18,7 +18,8 @@ function settingsMessage(params: SettingsSearchParams | undefined) {
     const messages: Record<string, string> = {
       workspace_member_added: "Workspace member added.",
       workspace_member_removed: "Workspace member removed.",
-      workspace_member_updated: "Workspace member role updated."
+      workspace_member_updated: "Workspace member role updated.",
+      sync_schedule_updated: "Scheduled sync frequency updated."
     };
 
     return {
@@ -37,7 +38,10 @@ function settingsMessage(params: SettingsSearchParams | undefined) {
     workspace_member_identifier_required: "Enter a GitHub username or email.",
     workspace_member_not_found: "This user has not signed in to AveriCode yet.",
     workspace_owner_protected: "The workspace owner cannot be removed or downgraded.",
-    workspace_permission_denied: "Only workspace owners and admins can manage members."
+    workspace_permission_denied: "Only workspace owners and admins can manage members.",
+    sync_schedule_invalid: "Choose a valid scheduled sync frequency.",
+    sync_schedule_owner_required: "Only the workspace owner can change the scheduled sync frequency.",
+    sync_schedule_failed: "Could not update the scheduled sync frequency."
   };
 
   return {

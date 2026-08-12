@@ -512,6 +512,20 @@ button.button:disabled,
   align-items: end;
 }
 
+.workspace-member-form {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.scheduled-sync-form {
+  display: grid;
+  grid-template-columns: minmax(240px, 360px) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
 .inline-form {
   display: inline-flex;
   align-items: center;
@@ -1126,6 +1140,10 @@ button.button:disabled,
   }
 
   .settings-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduled-sync-form {
     grid-template-columns: 1fr;
   }
 

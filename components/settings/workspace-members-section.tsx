@@ -1,5 +1,6 @@
-import { Save, ShieldCheck, Trash2 } from "lucide-react";
+import { Save, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import {
+  addWorkspaceMemberAction,
   removeWorkspaceMemberAction,
   updateWorkspaceMemberRoleAction
 } from "@/app/actions";
@@ -10,9 +11,14 @@ import { type SettingsMember, userLabel } from "@/lib/settings/queries";
 type WorkspaceMembersSectionProps = {
   canManageWorkspace: boolean;
   members: SettingsMember[];
+  workspaceId: string;
 };
 
-export function WorkspaceMembersSection({ canManageWorkspace, members }: WorkspaceMembersSectionProps) {
+export function WorkspaceMembersSection({
+  canManageWorkspace,
+  members,
+  workspaceId
+}: WorkspaceMembersSectionProps) {
   return (
     <section className="section">
       <div className="section-header">
@@ -21,6 +27,31 @@ export function WorkspaceMembersSection({ canManageWorkspace, members }: Workspa
           <p className="section-copy">People who can access this workspace and its monitored repository data.</p>
         </div>
       </div>
+      {canManageWorkspace ? (
+        <form action={addWorkspaceMemberAction} className="settings-form-row workspace-member-form">
+          <input name="workspaceId" type="hidden" value={workspaceId} />
+          <input name="returnTo" type="hidden" value="/settings" />
+          <div className="field">
+            <label htmlFor="workspace-member-identifier">GitHub username or email</label>
+            <input
+              id="workspace-member-identifier"
+              name="identifier"
+              placeholder="octocat or user@example.com"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="workspace-member-role">Role</label>
+            <select defaultValue="MEMBER" id="workspace-member-role" name="role">
+              <option value="MEMBER">Member</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+          </div>
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
+            <UserPlus aria-hidden size={16} />
+            Add member
+          </PendingSubmitButton>
+        </form>
+      ) : null}
       <div className="table-wrap">
         <table className="data-table">
           <thead>

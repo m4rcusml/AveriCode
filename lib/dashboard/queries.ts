@@ -31,7 +31,6 @@ export type DashboardRepository = {
   id: string;
   defaultBranch: string | null;
   fullName: string;
-  isActive: boolean;
   lastSyncedAt: Date | null;
   private: boolean;
   contributorRows: DashboardContributorActivityRow[];
@@ -211,7 +210,6 @@ export async function getDashboardData(
       id: repository.id,
       defaultBranch: repository.defaultBranch,
       fullName: repository.fullName,
-      isActive: repository.isActive,
       lastSyncedAt: repository.lastSyncedAt,
       private: repository.private,
       contributorRows: contributorRowsForRepository(repository)
@@ -226,8 +224,7 @@ export async function getDashboardData(
     tabInstallations[0] ??
     null;
   const repositories = installations.flatMap((installation) => installation.repositories);
-  const activeRepositories = repositories.filter((repository) => repository.isActive);
-  const allContributorRows = activeRepositories
+  const allContributorRows = repositories
     .flatMap((repository) => repository.contributorRows)
     .filter((row) => !row.isIgnored);
 
@@ -247,7 +244,7 @@ export async function getDashboardData(
       inactiveContributorCount: allContributorRows.filter((row) => row.status === "INACTIVE").length,
       latestSyncStartedAt: latestSyncRun?.startedAt ?? null,
       latestSyncTarget: latestSyncTarget(latestSyncRun),
-      monitoredRepositoryCount: activeRepositories.length,
+      monitoredRepositoryCount: repositories.length,
       totalRepositoryCount: repositories.length,
       unknownContributorCount: allContributorRows.filter((row) => row.status === "UNKNOWN").length
     }
