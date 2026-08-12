@@ -9,18 +9,19 @@ import {
   addExpectedContributors,
   addRepositoryBranches,
   removeRepositoryBranch,
-  setRepositoryMonitoring,
   updateRepositoryContributor
 } from "@/lib/repository-config";
 import { importInstallationRepositories } from "@/lib/github/installations";
 import { getManualSyncCooldown, syncRepositoryActivity } from "@/lib/github/sync";
 import { prisma } from "@/lib/prisma";
+import { parseSyncSchedule } from "@/lib/sync-schedule";
 import { setSelectedWorkspaceForUser, getSelectedWorkspaceForUser } from "@/lib/workspace-selection";
 import {
   addWorkspaceMember,
   assertRepositoryWriteAccess,
   assertWorkspaceWriteAccess,
   removeWorkspaceMember,
+  updateWorkspaceSyncSchedule,
   updateWorkspaceMemberRole,
   workspaceMemberRole
 } from "@/lib/workspaces";
@@ -85,7 +86,17 @@ function redirectWithSyncError(
   redirect(`${url.pathname}${url.search}`);
 }
 
-function redirectWithSettingsStatus(destination: string, params: Record<string, string>) {
+function redirectWithSettingsStatus(destination: string, params: Record<string, string>): never {
+  const url = new URL(destination, "http://avericode.local");
+
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  redirect(`${url.pathname}${url.search}`);
+}
+
+function redirectWithBranchStatus(destination: string, params: Record<string, string>): never {
   const url = new URL(destination, "http://avericode.local");
 
   for (const [key, value] of Object.entries(params)) {
@@ -159,18 +170,6 @@ async function syncAfterContributorAdded(repositoryId: string) {
     repositoryId,
     trigger: "MANUAL"
   });
-}
-
-export async function toggleRepositoryMonitoringAction(formData: FormData) {
-  const user = await requireUser();
-  const repositoryId = stringValue(formData, "repositoryId");
-  const isActive = stringValue(formData, "isActive") === "true";
-  const destination = returnTo(formData, "/dashboard");
-
-  await setRepositoryMonitoring(user.id, repositoryId, isActive);
-  revalidatePath("/dashboard");
-  revalidatePath(destination);
-  redirect(destination);
 }
 
 export async function switchWorkspaceAction(formData: FormData) {
@@ -261,15 +260,26 @@ export async function addRepositoryBranchesAction(formData: FormData) {
     .getAll("selectedBranch")
     .filter((value): value is string => typeof value === "string");
 
-  if (branches.length > 0) {
-    await addRepositoryBranches(user.id, repositoryId, branches);
-  } else {
-    await assertRepositoryWriteAccess(user.id, repositoryId);
+  try {
+    if (branches.length > 0) {
+      await addRepositoryBranches(user.id, repositoryId, branches);
+    } else {
+      await assertRepositoryWriteAccess(user.id, repositoryId);
+    }
+  } catch (error) {
+    redirectWithBranchStatus(destination, {
+      branch_error:
+        error instanceof Error && error.message === "Owner or admin role required."
+          ? "workspace_permission_denied"
+          : "branches_add_failed"
+    });
   }
 
   revalidatePath("/dashboard");
   revalidatePath(destination);
-  redirect(destination);
+  redirectWithBranchStatus(destination, {
+    branch_success: branches.length > 0 ? "branches_added" : "no_branches_selected"
+  });
 }
 
 export async function removeRepositoryBranchAction(formData: FormData) {
@@ -277,11 +287,22 @@ export async function removeRepositoryBranchAction(formData: FormData) {
   const repositoryBranchId = stringValue(formData, "repositoryBranchId");
   const destination = returnTo(formData, "/dashboard");
 
-  await removeRepositoryBranch(user.id, repositoryBranchId);
+  try {
+    await removeRepositoryBranch(user.id, repositoryBranchId);
+  } catch (error) {
+    redirectWithBranchStatus(destination, {
+      branch_error:
+        error instanceof Error && error.message === "Owner or admin role required."
+          ? "workspace_permission_denied"
+          : "branch_remove_failed"
+    });
+  }
 
   revalidatePath("/dashboard");
   revalidatePath(destination);
-  redirect(destination);
+  redirectWithBranchStatus(destination, {
+    branch_success: "branch_removed"
+  });
 }
 
 export async function syncRepositoryNowAction(formData: FormData) {
@@ -486,5 +507,35 @@ export async function removeWorkspaceMemberAction(formData: FormData) {
   revalidatePath("/settings");
   redirectWithSettingsStatus(destination, {
     settings_success: "workspace_member_removed"
+  });
+}
+
+export async function updateWorkspaceSyncScheduleAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = stringValue(formData, "workspaceId");
+  const destination = returnTo(formData, "/settings");
+  const syncSchedule = parseSyncSchedule(stringValue(formData, "syncSchedule"));
+
+  if (!syncSchedule) {
+    redirectWithSettingsStatus(destination, {
+      settings_error: "sync_schedule_invalid"
+    });
+  }
+
+  try {
+    await updateWorkspaceSyncSchedule(user.id, workspaceId, syncSchedule);
+  } catch (error) {
+    redirectWithSettingsStatus(destination, {
+      settings_error:
+        error instanceof Error && error.message === "Workspace owner role required."
+          ? "sync_schedule_owner_required"
+          : "sync_schedule_failed"
+    });
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/settings");
+  redirectWithSettingsStatus(destination, {
+    settings_success: "sync_schedule_updated"
   });
 }

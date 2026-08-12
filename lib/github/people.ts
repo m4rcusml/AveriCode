@@ -13,9 +13,10 @@ export type GitHubPersonSuggestion = {
   avatarUrl: string | null;
 };
 
-type RepositoryPeopleSuggestions = {
+export type RepositoryPeopleSuggestions = {
   suggestedContributors: GitHubPersonSuggestion[];
   accessWithoutContributions: GitHubPersonSuggestion[];
+  allPeople: GitHubPersonSuggestion[];
   errors: string[];
 };
 
@@ -105,14 +106,11 @@ function readableGitHubError(error: unknown, label: string) {
   return `${label} could not be loaded from GitHub.`;
 }
 
-export async function getRepositoryPeopleSuggestions(repositoryId: string): Promise<RepositoryPeopleSuggestions> {
-  const repository = await prisma.repository.findUniqueOrThrow({
-    where: { id: repositoryId },
-    include: {
-      installation: true
-    }
-  });
-  const token = await getInstallationAccessToken(repository.installation.installationId);
+export async function fetchRepositoryPeopleSuggestions(input: {
+  token: string;
+  owner: string;
+  name: string;
+}): Promise<RepositoryPeopleSuggestions> {
   const errors: string[] = [];
   let repositoryCollaborators: GitHubPersonSuggestion[] = [];
   let repositoryContributors: GitHubPersonSuggestion[] = [];
@@ -120,9 +118,9 @@ export async function getRepositoryPeopleSuggestions(repositoryId: string): Prom
   try {
     repositoryCollaborators = uniquePeople(
       await fetchRepositoryCollaborators({
-        token,
-        owner: repository.owner,
-        name: repository.name
+        token: input.token,
+        owner: input.owner,
+        name: input.name
       })
     );
   } catch (error) {
@@ -132,9 +130,9 @@ export async function getRepositoryPeopleSuggestions(repositoryId: string): Prom
   try {
     repositoryContributors = uniquePeople(
       await fetchRepositoryContributors({
-        token,
-        owner: repository.owner,
-        name: repository.name
+        token: input.token,
+        owner: input.owner,
+        name: input.name
       })
     );
   } catch (error) {
@@ -152,6 +150,23 @@ export async function getRepositoryPeopleSuggestions(repositoryId: string): Prom
   return {
     suggestedContributors,
     accessWithoutContributions,
+    allPeople: uniquePeople([...repositoryCollaborators, ...repositoryContributors]),
     errors
   };
+}
+
+export async function getRepositoryPeopleSuggestions(repositoryId: string): Promise<RepositoryPeopleSuggestions> {
+  const repository = await prisma.repository.findUniqueOrThrow({
+    where: { id: repositoryId },
+    include: {
+      installation: true
+    }
+  });
+  const token = await getInstallationAccessToken(repository.installation.installationId);
+
+  return fetchRepositoryPeopleSuggestions({
+    token,
+    owner: repository.owner,
+    name: repository.name
+  });
 }

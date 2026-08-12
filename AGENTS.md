@@ -17,8 +17,9 @@ The product is designed as a SaaS-style application for teams and organizations,
 - GitHub repository access: GitHub App
 - Tenant model: Workspace-based multi-tenancy
 - Scheduled sync: Vercel Cron
-- Cron schedule: every Monday at 06:00 America/Sao_Paulo
-- Cron expression for Vercel UTC: `0 9 * * 1`
+- Cron dispatcher: every day at 06:00 America/Sao_Paulo
+- Cron expression for Vercel UTC: `0 9 * * *`
+- Workspace schedule: OWNER-selectable DAILY, WEEKLY, BIWEEKLY, or MONTHLY
 - Manual sync: supported through "Sync now" actions
 - Webhooks: implemented for GitHub App installation/repository access changes
 - Dashboard data source: PostgreSQL only, not live GitHub API calls
@@ -154,10 +155,11 @@ After import, the callback selects the target workspace before redirecting to th
 5. System imports existing GitHub App installations owned/administered by the user when possible.
 6. User clicks Add repositories to connect or configure GitHub App access.
 7. Backend saves the GitHubInstallation linked to the selected Workspace.
-8. Backend imports repositories available to that installation.
-9. User chooses which repositories should be monitored.
-10. User configures expected contributors for each repository.
-11. Dashboard becomes available.
+8. Backend imports repositories available to that installation and monitors them automatically.
+9. Backend adds GitHub collaborators/contributors as expected contributors.
+10. Backend adds up to five non-default branches changed during the previous two weeks.
+11. User can remove expected contributors or add more branches.
+12. Dashboard becomes available.
 ```
 
 ## Repository Monitoring Rule
@@ -178,13 +180,13 @@ Expected contributors are represented through repository contributor configurati
 
 By default, AveriCode monitors the repository default branch.
 
-Users can add extra repository branches from the branch configuration page. Sync reads the default branch plus any configured extra branches. Dashboard commit activity includes the branch of the last commit when available.
+New repositories automatically add up to five non-default branches changed during the previous two weeks. Users can add more branches from the branch configuration page. Sync reads the default branch plus configured extra branches. Dashboard commit activity includes the branch of the last commit when available.
 
 ## Sync Model
 
 There are two ways to run sync:
 
-- Scheduled weekly sync through Vercel Cron.
+- Scheduled sync through a daily Vercel Cron dispatcher and per-workspace frequency.
 - Manual sync through user-triggered actions.
 
 Both paths call shared sync logic in:
@@ -196,8 +198,8 @@ lib/github/sync.ts
 Important routes:
 
 ```txt
-/api/cron/weekly-sync
-  -> runs all active workspaces/repositories
+/api/cron/scheduled-sync
+  -> runs repositories for workspaces whose configured schedule is due
 
 /api/github/sync-now
   -> runs the current workspace or a selected repository
@@ -228,12 +230,13 @@ Webhook behavior:
 - `repository`: refreshes linked installations when repository metadata/access changes.
 - selected `installation` actions such as `created`, `new_permissions_accepted`, and `unsuspend`: refresh linked installations.
 
-## Weekly Sync Flow
+## Scheduled Sync Flow
 
 ```txt
-1. Cron starts every Monday at 06:00 America/Sao_Paulo.
-2. Backend finds active repositories.
-3. For each repository:
+1. Cron dispatcher starts daily at 06:00 America/Sao_Paulo.
+2. Backend claims workspaces due under their DAILY, WEEKLY, BIWEEKLY, or MONTHLY setting.
+3. Backend finds automatically monitored repositories.
+4. For each repository:
    - Load the linked GitHub installation.
    - Generate a GitHub App installation token.
    - Fetch commits from the default branch and configured extra branches since now - 7 days.
@@ -242,7 +245,7 @@ Webhook behavior:
    - Compare commit activity against expected repository contributors.
    - Create CommitActivitySnapshot records.
    - Create or update SyncRun records.
-4. Dashboard reads saved snapshots from PostgreSQL.
+5. Dashboard reads saved snapshots from PostgreSQL.
 ```
 
 The dashboard must not call GitHub directly on page load.
@@ -271,6 +274,8 @@ Workspace
 - name
 - slug
 - ownerId
+- syncSchedule: DAILY | WEEKLY | BIWEEKLY | MONTHLY
+- lastScheduledSyncAt
 
 WorkspaceMember
 - workspaceId
@@ -350,7 +355,7 @@ app/
     repositories/[repositoryId]/contributors/
   api/
     auth/[...nextauth]/
-    cron/weekly-sync/
+    cron/scheduled-sync/
     github/install/
     github/setup/
     github/sync-now/

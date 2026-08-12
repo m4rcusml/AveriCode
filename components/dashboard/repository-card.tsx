@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { GitBranch, RefreshCw, Users } from "lucide-react";
-import {
-  syncRepositoryNowAction,
-  toggleRepositoryMonitoringAction
-} from "@/app/actions";
+import { syncRepositoryNowAction } from "@/app/actions";
 import { ContributorRow } from "@/components/dashboard/contributor-row";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { DashboardRepository } from "@/lib/dashboard/queries";
@@ -21,15 +18,6 @@ export function RepositoryCard({ repository, returnTo }: RepositoryCardProps) {
         <div className="repository-card-title">
           <div className="repository-title-line">
             <h2>{repository.fullName}</h2>
-            <form action={toggleRepositoryMonitoringAction}>
-              <input name="repositoryId" type="hidden" value={repository.id} />
-              <input name="isActive" type="hidden" value={repository.isActive ? "false" : "true"} />
-              <input name="returnTo" type="hidden" value={returnTo} />
-              <PendingSubmitButton className="button button-secondary" pendingLabel="Saving...">
-                <GitBranch aria-hidden size={16} />
-                {repository.isActive ? "Stop monitoring" : "Monitor"}
-              </PendingSubmitButton>
-            </form>
           </div>
           <p>
             {repository.private ? "Private" : "Public"}
@@ -37,9 +25,9 @@ export function RepositoryCard({ repository, returnTo }: RepositoryCardProps) {
           </p>
         </div>
         <div className="repository-card-actions">
-          <span className={`status-badge ${repository.isActive ? "status-active" : "status-unknown"}`}>
+          <span className="status-badge status-active">
             <GitBranch aria-hidden size={16} />
-            {repository.isActive ? "Monitored" : "Not monitored"}
+            Automatically monitored
           </span>
           <span className="repository-sync-date">Last sync: {formatDateTime(repository.lastSyncedAt)}</span>
           <form action={syncRepositoryNowAction}>

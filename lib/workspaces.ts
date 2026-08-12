@@ -1,4 +1,4 @@
-import { Prisma, WorkspaceRole } from "@prisma/client";
+import { Prisma, type SyncSchedule, WorkspaceRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugs";
 
@@ -110,6 +110,32 @@ export async function assertWorkspaceWriteAccess(userId: string, workspaceId: st
   }
 
   return membership;
+}
+
+export async function assertWorkspaceOwnerAccess(userId: string, workspaceId: string) {
+  const membership = await assertWorkspaceAccess(userId, workspaceId);
+
+  if (membership.role !== "OWNER") {
+    throw new Error("Workspace owner role required.");
+  }
+
+  return membership;
+}
+
+export async function updateWorkspaceSyncSchedule(
+  userId: string,
+  workspaceId: string,
+  syncSchedule: SyncSchedule
+) {
+  await assertWorkspaceOwnerAccess(userId, workspaceId);
+
+  return prisma.workspace.update({
+    where: { id: workspaceId },
+    data: {
+      syncSchedule,
+      lastScheduledSyncAt: null
+    }
+  });
 }
 
 export async function addWorkspaceMember(

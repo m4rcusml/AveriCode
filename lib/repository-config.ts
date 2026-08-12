@@ -1,143 +1,27 @@
 import { prisma } from "@/lib/prisma";
+import {
+  addExpectedContributorsToRepository,
+  type ContributorIdentityInput
+} from "@/lib/contributors";
 import { assertRepositoryWriteAccess, assertWorkspaceWriteAccess } from "@/lib/workspaces";
-
-type ContributorConfigInput = {
-  githubUserId?: string | null;
-  username?: string | null;
-  name?: string | null;
-  avatarUrl?: string | null;
-  email?: string | null;
-};
-
-function cleanString(value: string | null | undefined) {
-  const cleaned = value?.trim();
-  return cleaned ? cleaned : null;
-}
-
-function normalizeUsername(value: string | null | undefined) {
-  return cleanString(value)?.replace(/^@/, "") ?? null;
-}
-
-function normalizeEmail(value: string | null | undefined) {
-  return cleanString(value)?.toLowerCase() ?? null;
-}
-
-function contributorData(input: ContributorConfigInput) {
-  return {
-    githubUserId: cleanString(input.githubUserId) ?? undefined,
-    username: normalizeUsername(input.username) ?? undefined,
-    name: cleanString(input.name) ?? undefined,
-    avatarUrl: cleanString(input.avatarUrl) ?? undefined,
-    email: normalizeEmail(input.email) ?? undefined
-  };
-}
-
-async function findOrCreateConfiguredContributor(input: ContributorConfigInput) {
-  const data = contributorData(input);
-
-  if (!data.githubUserId && !data.username && !data.email) {
-    throw new Error("Expected contributor requires a GitHub username, GitHub user id, or email.");
-  }
-
-  const existing = await prisma.contributor.findFirst({
-    where: {
-      OR: [
-        data.githubUserId ? { githubUserId: data.githubUserId } : undefined,
-        data.username ? { username: data.username } : undefined,
-        data.email ? { email: data.email } : undefined
-      ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition))
-    }
-  });
-
-  if (existing) {
-    return prisma.contributor.update({
-      where: { id: existing.id },
-      data
-    });
-  }
-
-  return prisma.contributor.create({
-    data
-  });
-}
-
-export async function setRepositoryMonitoring(userId: string, repositoryId: string, isActive: boolean) {
-  await assertRepositoryWriteAccess(userId, repositoryId);
-
-  return prisma.repository.update({
-    where: { id: repositoryId },
-    data: { isActive }
-  });
-}
 
 export async function addExpectedContributor(
   userId: string,
   repositoryId: string,
-  input: ContributorConfigInput
+  input: ContributorIdentityInput
 ) {
   await assertRepositoryWriteAccess(userId, repositoryId);
-  const contributor = await findOrCreateConfiguredContributor(input);
-
-  return prisma.repositoryContributor.upsert({
-    where: {
-      repositoryId_contributorId: {
-        repositoryId,
-        contributorId: contributor.id
-      }
-    },
-    update: {
-      isExpected: true,
-      isIgnored: false
-    },
-    create: {
-      repositoryId,
-      contributorId: contributor.id,
-      isExpected: true,
-      isIgnored: false
-    },
-    include: {
-      contributor: true
-    }
-  });
+  const [repositoryContributor] = await addExpectedContributorsToRepository(repositoryId, [input]);
+  return repositoryContributor;
 }
 
 export async function addExpectedContributors(
   userId: string,
   repositoryId: string,
-  inputs: ContributorConfigInput[]
+  inputs: ContributorIdentityInput[]
 ) {
   await assertRepositoryWriteAccess(userId, repositoryId);
-
-  const results = [];
-
-  for (const input of inputs) {
-    const contributor = await findOrCreateConfiguredContributor(input);
-    results.push(
-      await prisma.repositoryContributor.upsert({
-        where: {
-          repositoryId_contributorId: {
-            repositoryId,
-            contributorId: contributor.id
-          }
-        },
-        update: {
-          isExpected: true,
-          isIgnored: false
-        },
-        create: {
-          repositoryId,
-          contributorId: contributor.id,
-          isExpected: true,
-          isIgnored: false
-        },
-        include: {
-          contributor: true
-        }
-      })
-    );
-  }
-
-  return results;
+  return addExpectedContributorsToRepository(repositoryId, inputs);
 }
 
 export async function updateRepositoryContributor(

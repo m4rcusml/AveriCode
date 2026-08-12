@@ -1,4 +1,7 @@
 import { GitHubAccountType, RepositorySelection } from "@prisma/client";
+import { addExpectedContributorsToRepository } from "@/lib/contributors";
+import { fetchRecentlyUpdatedRepositoryBranches } from "@/lib/github/commits";
+import { fetchRepositoryPeopleSuggestions } from "@/lib/github/people";
 import { prisma } from "@/lib/prisma";
 import {
   getInstallationAccessToken,
@@ -44,7 +47,15 @@ type ImportedRepository = {
   id: string;
   fullName: string;
   wasExisting: boolean;
+  setup: {
+    expectedContributorCount: number;
+    monitoredBranchCount: number;
+    warnings: string[];
+  } | null;
 };
+
+const AUTO_BRANCH_LIMIT = 5;
+const AUTO_BRANCH_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
 
 function mapAccountType(type: GitHubInstallationResponse["account"]["type"]) {
   return type === "Organization" ? GitHubAccountType.ORGANIZATION : GitHubAccountType.USER;
@@ -76,8 +87,7 @@ export async function fetchGitHubAppInstallations() {
   return installations;
 }
 
-export async function fetchInstallationRepositories(installationId: string) {
-  const token = await getInstallationAccessToken(installationId);
+async function fetchInstallationRepositoriesWithToken(token: string) {
   const repositories: GitHubRepositoryResponse[] = [];
 
   for (let page = 1; ; page += 1) {
@@ -96,6 +106,96 @@ export async function fetchInstallationRepositories(installationId: string) {
   }
 
   return repositories;
+}
+
+export async function fetchInstallationRepositories(installationId: string) {
+  const token = await getInstallationAccessToken(installationId);
+  return fetchInstallationRepositoriesWithToken(token);
+}
+
+async function configureNewRepository(
+  repository: {
+    id: string;
+    defaultBranch: string | null;
+    name: string;
+    owner: string;
+  },
+  token: string
+) {
+  const warnings: string[] = [];
+  let expectedContributorCount = 0;
+  let monitoredBranchCount = 0;
+  const [peopleResult, branchesResult] = await Promise.allSettled([
+    fetchRepositoryPeopleSuggestions({
+      token,
+      owner: repository.owner,
+      name: repository.name
+    }),
+    fetchRecentlyUpdatedRepositoryBranches({
+      token,
+      owner: repository.owner,
+      name: repository.name,
+      defaultBranch: repository.defaultBranch,
+      since: new Date(Date.now() - AUTO_BRANCH_LOOKBACK_MS),
+      limit: AUTO_BRANCH_LIMIT
+    })
+  ]);
+
+  if (peopleResult.status === "fulfilled") {
+    warnings.push(...peopleResult.value.errors);
+    try {
+      const addedContributors = await addExpectedContributorsToRepository(
+        repository.id,
+        peopleResult.value.allPeople
+      );
+      expectedContributorCount = addedContributors.length;
+    } catch (error) {
+      warnings.push(
+        error instanceof Error
+          ? `Expected contributors could not be saved: ${error.message}`
+          : "Expected contributors could not be saved."
+      );
+    }
+  } else {
+    warnings.push(
+      peopleResult.reason instanceof Error
+        ? `Expected contributors could not be configured: ${peopleResult.reason.message}`
+        : "Expected contributors could not be configured."
+    );
+  }
+
+  if (branchesResult.status === "fulfilled") {
+    if (branchesResult.value.length > 0) {
+      try {
+        const result = await prisma.repositoryBranch.createMany({
+          data: branchesResult.value.map((branch) => ({
+            repositoryId: repository.id,
+            name: branch.name
+          })),
+          skipDuplicates: true
+        });
+        monitoredBranchCount = result.count;
+      } catch (error) {
+        warnings.push(
+          error instanceof Error
+            ? `Recent branches could not be saved: ${error.message}`
+            : "Recent branches could not be saved."
+        );
+      }
+    }
+  } else {
+    warnings.push(
+      branchesResult.reason instanceof Error
+        ? `Recent branches could not be configured: ${branchesResult.reason.message}`
+        : "Recent branches could not be configured."
+    );
+  }
+
+  return {
+    expectedContributorCount,
+    monitoredBranchCount,
+    warnings
+  };
 }
 
 async function isUserOrganizationAdminForInstallation(
@@ -202,9 +302,10 @@ export async function importInstallationRepositories(githubInstallationId: strin
   const installation = await prisma.gitHubInstallation.findUniqueOrThrow({
     where: { id: githubInstallationId }
   });
+  const token = await getInstallationAccessToken(installation.installationId);
   const [githubInstallation, repositories] = await Promise.all([
     fetchGitHubInstallation(installation.installationId),
-    fetchInstallationRepositories(installation.installationId)
+    fetchInstallationRepositoriesWithToken(token)
   ]);
   const repositoryIds = repositories.map((repository) => String(repository.id));
 
@@ -260,7 +361,8 @@ export async function importInstallationRepositories(githubInstallationId: strin
         name: repository.name,
         fullName: repository.full_name,
         private: repository.private,
-        defaultBranch: repository.default_branch
+        defaultBranch: repository.default_branch,
+        isActive: true
       },
       create: {
         workspaceId: installation.workspaceId,
@@ -270,14 +372,29 @@ export async function importInstallationRepositories(githubInstallationId: strin
         name: repository.name,
         fullName: repository.full_name,
         private: repository.private,
-        defaultBranch: repository.default_branch
+        defaultBranch: repository.default_branch,
+        isActive: true
       }
     });
+
+    const wasExisting = existingRepositoryIds.has(savedRepository.githubRepoId);
+    const setup = wasExisting
+      ? null
+      : await configureNewRepository(
+          {
+            id: savedRepository.id,
+            owner: savedRepository.owner,
+            name: savedRepository.name,
+            defaultBranch: savedRepository.defaultBranch
+          },
+          token
+        );
 
     importedRepositories.push({
       id: savedRepository.id,
       fullName: savedRepository.fullName,
-      wasExisting: existingRepositoryIds.has(savedRepository.githubRepoId)
+      wasExisting,
+      setup
     });
   }
 

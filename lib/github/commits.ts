@@ -22,6 +22,14 @@ export type GitHubCommitWithBranch = GitHubCommit & {
 
 export type GitHubBranch = {
   name: string;
+  commit?: {
+    sha: string;
+  };
+};
+
+export type RecentGitHubBranch = {
+  name: string;
+  lastCommitAt: Date;
 };
 
 type FetchRepositoryCommitsInput = {
@@ -137,4 +145,79 @@ export async function fetchRepositoryBranches(input: {
   }
 
   return branches;
+}
+
+type GitHubGitCommitResponse = {
+  author: {
+    date: string | null;
+  } | null;
+  committer: {
+    date: string | null;
+  } | null;
+};
+
+function parsedCommitDate(commit: GitHubGitCommitResponse) {
+  const value = commit.committer?.date ?? commit.author?.date;
+
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export async function fetchRecentlyUpdatedRepositoryBranches(input: {
+  owner: string;
+  name: string;
+  token: string;
+  since: Date;
+  defaultBranch?: string | null;
+  limit?: number;
+}) {
+  const branches = await fetchRepositoryBranches(input);
+  const candidates = branches.filter(
+    (branch) => branch.name !== input.defaultBranch && Boolean(branch.commit?.sha)
+  );
+  const recentBranches: RecentGitHubBranch[] = [];
+  const batchSize = 10;
+
+  for (let index = 0; index < candidates.length; index += batchSize) {
+    const batch = candidates.slice(index, index + batchSize);
+    const dates = await Promise.all(
+      batch.map(async (branch) => {
+        try {
+          const commit = await githubRequest<GitHubGitCommitResponse>(
+            `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(
+              input.name
+            )}/git/commits/${encodeURIComponent(branch.commit!.sha)}`,
+            {
+              bearerToken: input.token
+            }
+          );
+
+          return parsedCommitDate(commit);
+        } catch (error) {
+          if (error instanceof GitHubApiError && [404, 409, 422].includes(error.status)) {
+            return null;
+          }
+
+          throw error;
+        }
+      })
+    );
+
+    for (const [batchIndex, date] of dates.entries()) {
+      if (date && date >= input.since) {
+        recentBranches.push({
+          name: batch[batchIndex].name,
+          lastCommitAt: date
+        });
+      }
+    }
+  }
+
+  return recentBranches
+    .sort((left, right) => right.lastCommitAt.getTime() - left.lastCommitAt.getTime())
+    .slice(0, input.limit ?? 5);
 }

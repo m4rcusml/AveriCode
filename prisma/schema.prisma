@@ -42,6 +42,13 @@ enum SyncTrigger {
   MANUAL
 }
 
+enum SyncSchedule {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
 model User {
   id              String            @id @default(cuid())
   name            String?
@@ -94,17 +101,19 @@ model VerificationToken {
 }
 
 model Workspace {
-  id            String               @id @default(cuid())
-  name          String
-  slug          String               @unique
-  ownerId       String
-  owner         User                 @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  members       WorkspaceMember[]
-  installations GitHubInstallation[]
-  repositories  Repository[]
-  syncRuns      SyncRun[]
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id                  String               @id @default(cuid())
+  name                String
+  slug                String               @unique
+  ownerId             String
+  owner               User                 @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members             WorkspaceMember[]
+  installations       GitHubInstallation[]
+  repositories        Repository[]
+  syncRuns            SyncRun[]
+  syncSchedule        SyncSchedule         @default(WEEKLY)
+  lastScheduledSyncAt DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model WorkspaceMember {
@@ -147,7 +156,7 @@ model Repository {
   fullName             String
   private              Boolean                  @default(false)
   defaultBranch        String?
-  isActive             Boolean                  @default(false)
+  isActive             Boolean                  @default(true)
   lastSyncedAt         DateTime?
   workspace            Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   installation         GitHubInstallation       @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
