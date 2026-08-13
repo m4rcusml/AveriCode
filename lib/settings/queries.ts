@@ -1,5 +1,7 @@
 import type {
   GitHubAccountType,
+  RepositoryAccessRequestItemStatus,
+  RepositoryAccessRequestStatus,
   RepositorySelection,
   SyncSchedule,
   WorkspaceRole
@@ -41,6 +43,22 @@ export type SettingsInstallation = {
   repositorySelection: RepositorySelection;
 };
 
+export type SettingsRepositoryAccessRequest = {
+  id: string;
+  accountLogin: string;
+  createdAt: Date;
+  requesterLabel: string;
+  reviewedAt: Date | null;
+  reviewerLabel: string | null;
+  status: RepositoryAccessRequestStatus;
+  items: Array<{
+    id: string;
+    fullName: string;
+    private: boolean;
+    status: RepositoryAccessRequestItemStatus;
+  }>;
+};
+
 export type SettingsData = {
   canManageWorkspace: boolean;
   isWorkspaceOwner: boolean;
@@ -54,6 +72,7 @@ export type SettingsData = {
     repositoryCount: number;
   };
   members: SettingsMember[];
+  repositoryAccessRequests: SettingsRepositoryAccessRequest[];
   workspace: SettingsWorkspace;
 };
 
@@ -71,7 +90,7 @@ export function userLabel(user: { email: string | null; githubUsername: string |
 
 export async function getSettingsData(userId: string): Promise<SettingsData> {
   const workspace = await getSelectedWorkspaceForUser(userId);
-  const [rawInstallations, rawMembers] = await Promise.all([
+  const [rawInstallations, rawMembers, rawRepositoryAccessRequests] = await Promise.all([
     prisma.gitHubInstallation.findMany({
       where: { workspaceId: workspace.id },
       include: {
@@ -92,6 +111,15 @@ export async function getSettingsData(userId: string): Promise<SettingsData> {
         user: true
       },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }]
+    }),
+    prisma.repositoryAccessRequest.findMany({
+      where: { workspaceId: workspace.id },
+      include: {
+        requester: { select: { email: true, githubUsername: true, name: true } },
+        reviewedBy: { select: { email: true, githubUsername: true, name: true } },
+        items: { orderBy: { fullName: "asc" } }
+      },
+      orderBy: { createdAt: "desc" }
     })
   ]);
   const repositories = rawInstallations.flatMap((installation) => installation.repositories);
@@ -136,6 +164,21 @@ export async function getSettingsData(userId: string): Promise<SettingsData> {
         : 0,
       role: member.role,
       userId: member.userId
+    })),
+    repositoryAccessRequests: rawRepositoryAccessRequests.map((request) => ({
+      id: request.id,
+      accountLogin: request.accountLogin,
+      createdAt: request.createdAt,
+      requesterLabel: userLabel(request.requester),
+      reviewedAt: request.reviewedAt,
+      reviewerLabel: request.reviewedBy ? userLabel(request.reviewedBy) : null,
+      status: request.status,
+      items: request.items.map((item) => ({
+        id: item.id,
+        fullName: item.fullName,
+        private: item.private,
+        status: item.status
+      }))
     })),
     metrics: {
       githubAccountCount: rawInstallations.length,

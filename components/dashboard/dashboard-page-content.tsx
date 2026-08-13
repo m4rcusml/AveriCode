@@ -70,7 +70,11 @@ export function DashboardPageContent({ data, searchParams }: DashboardPageConten
             tabInstallations={data.tabInstallations}
             workspace={data.workspace}
           />
-          <RepositoryList returnTo={data.selectedDashboardHref} selectedInstallation={data.selectedInstallation} />
+          <RepositoryList
+            addRepositoriesUrl={data.installUrl}
+            returnTo={data.selectedDashboardHref}
+            selectedInstallation={data.selectedInstallation}
+          />
         </>
       )}
     </main>

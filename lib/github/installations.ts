@@ -10,7 +10,7 @@ import {
   githubRequest
 } from "@/lib/github/app-auth";
 
-type GitHubInstallationResponse = {
+export type GitHubInstallationResponse = {
   id: number;
   repository_selection: "all" | "selected";
   account: {
@@ -19,7 +19,7 @@ type GitHubInstallationResponse = {
   };
 };
 
-type GitHubRepositoryResponse = {
+export type GitHubRepositoryResponse = {
   id: number;
   name: string;
   full_name: string;
@@ -113,7 +113,7 @@ export async function fetchInstallationRepositories(installationId: string) {
   return fetchInstallationRepositoriesWithToken(token);
 }
 
-async function configureNewRepository(
+export async function configureNewRepository(
   repository: {
     id: string;
     defaultBranch: string | null;
@@ -223,7 +223,10 @@ async function isUserOrganizationAdminForInstallation(
   }
 }
 
-async function userOwnsGitHubInstallation(installation: GitHubInstallationResponse, username: string) {
+export async function userOwnsGitHubInstallation(
+  installation: GitHubInstallationResponse,
+  username: string
+) {
   if (installation.account.type === "User") {
     return installation.account.login.toLowerCase() === username.toLowerCase();
   }
@@ -235,69 +238,6 @@ async function userOwnsGitHubInstallation(installation: GitHubInstallationRespon
   );
 }
 
-export async function persistInstallationFromSetup(workspaceId: string, installationId: string) {
-  const installation = await fetchGitHubInstallation(installationId);
-
-  const savedInstallation = await prisma.gitHubInstallation.upsert({
-    where: {
-      workspaceId_installationId: {
-        workspaceId,
-        installationId
-      }
-    },
-    update: {
-      accountLogin: installation.account.login,
-      accountType: mapAccountType(installation.account.type),
-      repositorySelection: mapRepositorySelection(installation.repository_selection)
-    },
-    create: {
-      workspaceId,
-      installationId,
-      accountLogin: installation.account.login,
-      accountType: mapAccountType(installation.account.type),
-      repositorySelection: mapRepositorySelection(installation.repository_selection)
-    }
-  });
-
-  const importedRepositories = await importInstallationRepositories(savedInstallation.id);
-
-  return {
-    installation: savedInstallation,
-    importedCount: importedRepositories.length,
-    importedRepositories,
-    newRepositories: importedRepositories.filter((repository) => !repository.wasExisting)
-  };
-}
-
-export async function importOwnerGitHubInstallationsForWorkspace(userId: string, workspaceId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      githubUsername: true
-    }
-  });
-  const username = user?.githubUsername;
-
-  if (!username) {
-    return [];
-  }
-
-  const installations = await fetchGitHubAppInstallations();
-  const importedInstallations = [];
-
-  for (const installation of installations) {
-    if (!(await userOwnsGitHubInstallation(installation, username))) {
-      continue;
-    }
-
-    importedInstallations.push(
-      await persistInstallationFromSetup(workspaceId, String(installation.id))
-    );
-  }
-
-  return importedInstallations;
-}
-
 export async function importInstallationRepositories(githubInstallationId: string) {
   const installation = await prisma.gitHubInstallation.findUniqueOrThrow({
     where: { id: githubInstallationId }
@@ -307,7 +247,10 @@ export async function importInstallationRepositories(githubInstallationId: strin
     fetchGitHubInstallation(installation.installationId),
     fetchInstallationRepositoriesWithToken(token)
   ]);
-  const repositoryIds = repositories.map((repository) => String(repository.id));
+  const repositoriesById = new Map(
+    repositories.map((repository) => [String(repository.id), repository])
+  );
+  const repositoryIds = [...repositoriesById.keys()];
 
   await prisma.gitHubInstallation.update({
     where: { id: installation.id },
@@ -333,41 +276,25 @@ export async function importInstallationRepositories(githubInstallationId: strin
 
   const existingRepositories = await prisma.repository.findMany({
     where: {
-      workspaceId: installation.workspaceId,
-      githubRepoId: {
-        in: repositoryIds
-      }
+      githubInstallationId: installation.id
     },
     select: {
+      id: true,
       githubRepoId: true
     }
   });
-  const existingRepositoryIds = new Set(
-    existingRepositories.map((repository) => repository.githubRepoId)
-  );
   const importedRepositories: ImportedRepository[] = [];
 
-  for (const repository of repositories) {
-    const savedRepository = await prisma.repository.upsert({
-      where: {
-        workspaceId_githubRepoId: {
-          workspaceId: installation.workspaceId,
-          githubRepoId: String(repository.id)
-        }
-      },
-      update: {
-        githubInstallationId: installation.id,
-        owner: repository.owner.login,
-        name: repository.name,
-        fullName: repository.full_name,
-        private: repository.private,
-        defaultBranch: repository.default_branch,
-        isActive: true
-      },
-      create: {
-        workspaceId: installation.workspaceId,
-        githubInstallationId: installation.id,
-        githubRepoId: String(repository.id),
+  for (const existingRepository of existingRepositories) {
+    const repository = repositoriesById.get(existingRepository.githubRepoId);
+
+    if (!repository) {
+      continue;
+    }
+
+    const savedRepository = await prisma.repository.update({
+      where: { id: existingRepository.id },
+      data: {
         owner: repository.owner.login,
         name: repository.name,
         fullName: repository.full_name,
@@ -377,24 +304,11 @@ export async function importInstallationRepositories(githubInstallationId: strin
       }
     });
 
-    const wasExisting = existingRepositoryIds.has(savedRepository.githubRepoId);
-    const setup = wasExisting
-      ? null
-      : await configureNewRepository(
-          {
-            id: savedRepository.id,
-            owner: savedRepository.owner,
-            name: savedRepository.name,
-            defaultBranch: savedRepository.defaultBranch
-          },
-          token
-        );
-
     importedRepositories.push({
       id: savedRepository.id,
       fullName: savedRepository.fullName,
-      wasExisting,
-      setup
+      wasExisting: true,
+      setup: null
     });
   }
 

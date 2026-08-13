@@ -94,6 +94,8 @@ Webhook URL:
 http://localhost:3000/api/github/webhook
 ```
 
+Enable **Redirect on update** for the Setup URL. This returns users to AveriCode after they add or remove repositories from an existing GitHub App installation.
+
 For local webhook testing, expose the local app with a tunnel such as ngrok and use the tunnel URL:
 
 ```txt
@@ -148,19 +150,18 @@ Apply database migrations before or during deployment using your chosen migratio
 
 1. User signs in with GitHub OAuth.
 2. AveriCode creates a default personal workspace.
-3. On sign-in, AveriCode imports existing GitHub App installations owned by the user:
+3. User clicks Add repositories and AveriCode verifies existing GitHub App installations:
    - personal installations where the installation account matches the user's GitHub username;
    - organization installations where the user is an active organization admin.
-4. User clicks Add repositories.
-5. AveriCode routes through `/api/github/install?workspaceId=...` to remember the target workspace.
-6. GitHub redirects to `/api/github/setup?installation_id=...`.
-7. AveriCode persists the installation and imports repositories as automatically monitored.
-8. AveriCode adds repository collaborators/contributors as expected contributors.
-9. AveriCode adds up to five recently changed non-default branches from the previous two weeks.
-10. User removes people who should not be expected and can add more branches when needed.
-11. User runs manual sync or waits for the configured workspace schedule.
-12. Workspace owners can choose daily, weekly, biweekly, or monthly scheduled syncs in Settings.
-13. Dashboard reads saved PostgreSQL snapshots only.
+4. The user reuses an eligible installation or configures one through `/api/github/install?workspaceId=...`.
+5. GitHub returns through `/api/github/setup?installation_id=...` with a signed, one-time setup state.
+6. The user explicitly selects repositories for the current workspace.
+7. OWNER and ADMIN selections connect immediately; MEMBER selections create a request for the workspace owner.
+8. Approved repositories are monitored and receive expected contributor and recent branch defaults.
+9. User removes people who should not be expected and can add more branches when needed.
+10. User runs manual sync or waits for the configured workspace schedule.
+11. Workspace owners can choose daily, weekly, biweekly, or monthly scheduled syncs in Settings.
+12. Dashboard reads saved PostgreSQL snapshots only.
 
 ## Multi-Workspace Installation Behavior
 
@@ -169,10 +170,10 @@ GitHub App installations can appear in more than one AveriCode workspace when Gi
 Example:
 
 ```txt
-1. Account A installs the AveriCode GitHub App on organization B and imports repositories into workspace A.
-2. Later, account B signs in to AveriCode.
-3. If account B is the owner/admin of organization B, AveriCode imports that existing GitHub App installation into workspace B automatically.
-4. Workspace B can then see repositories from organization B without reinstalling the GitHub App.
+1. Account A installs the AveriCode GitHub App and explicitly connects repositories to workspace A.
+2. Later, an eligible user opens Add repositories in workspace B.
+3. The existing installation is reused and only the repositories explicitly selected for workspace B are connected.
+4. If that user is a workspace MEMBER, the repositories remain pending until workspace B's owner approves them.
 ```
 
 Inside a single workspace, duplicate repositories are still prevented by:

@@ -105,31 +105,31 @@ This prevents duplicate repositories inside the same workspace while still allow
 
 GitHub App installations can be linked to multiple workspaces when ownership/admin rules allow it.
 
-When a user signs in with GitHub OAuth:
+GitHub OAuth sign-in creates or loads the user's default workspace but does not import installations or repositories implicitly.
 
-1. AveriCode creates or loads the user's default workspace.
-2. AveriCode lists existing GitHub App installations.
-3. Personal installations are imported into the user's workspace when the installation account login matches the user's GitHub username.
-4. Organization installations are imported into the user's workspace when the user is an active organization admin.
-5. Imported installations then import the repositories currently available to that GitHub App installation.
+When connecting repositories, AveriCode verifies the stored OAuth identity, lists existing GitHub App installations, and allows reuse when:
+
+1. A personal installation account login matches the user's verified GitHub username.
+2. An organization installation belongs to an organization where the user is an active admin.
+3. The user explicitly selects which accessible repositories should be connected to the current workspace.
 
 This means if account A installed the GitHub App on organization B before account B joined AveriCode, account B's workspace can still receive organization B repositories after account B signs in, as long as account B is an admin/owner of that organization.
 
 ## GitHub App Setup Flow
 
-The "Add repositories" UI should point to the internal route:
+The "Add repositories" UI should point to the internal selector:
 
 ```txt
-/api/github/install?workspaceId=...
+/settings/repositories?workspaceId=...
 ```
 
-That route:
+The selector reuses eligible installations. Its "Install or change access" action points to `/api/github/install?workspaceId=...`, which:
 
 1. Requires an authenticated user.
-2. Requires OWNER or ADMIN access to the target workspace.
+2. Requires membership in the target workspace.
 3. Stores the selected workspace in the active workspace cookie.
-4. Stores a short-lived pending GitHub setup workspace cookie.
-5. Redirects to the GitHub App installation URL with `state=workspaceId`.
+4. Stores a short-lived signed GitHub setup state in an HTTP-only cookie.
+5. Redirects to the GitHub App installation URL with the same signed state.
 
 GitHub redirects back to:
 
@@ -137,13 +137,7 @@ GitHub redirects back to:
 /api/github/setup?installation_id=...
 ```
 
-The setup callback resolves the target workspace using:
-
-1. The GitHub `state` parameter.
-2. The pending setup workspace cookie.
-3. The currently selected workspace.
-
-After import, the callback selects the target workspace before redirecting to the dashboard.
+The setup callback requires the returned state to exactly match the pending cookie, verifies its signature, user, workspace, nonce, and expiration, consumes it once, validates that the installation is available to the signed-in GitHub identity, and redirects back to the repository selector. It does not import repositories automatically.
 
 ## User Onboarding Flow
 
@@ -152,14 +146,15 @@ After import, the callback selects the target workspace before redirecting to th
 2. System creates or updates the User.
 3. System creates a default Workspace if the user does not have one.
 4. System creates a WorkspaceMember record with role OWNER.
-5. System imports existing GitHub App installations owned/administered by the user when possible.
-6. User clicks Add repositories to connect or configure GitHub App access.
-7. Backend saves the GitHubInstallation linked to the selected Workspace.
-8. Backend imports repositories available to that installation and monitors them automatically.
-9. Backend adds GitHub collaborators/contributors as expected contributors.
-10. Backend adds up to five non-default branches changed during the previous two weeks.
-11. User can remove expected contributors or add more branches.
-12. Dashboard becomes available.
+5. User clicks Add repositories to reuse or configure GitHub App access.
+6. User explicitly selects repositories for the current workspace.
+7. OWNER and ADMIN selections are connected directly; MEMBER selections create a pending request.
+8. The workspace OWNER can approve any subset of repositories in a member request.
+9. Approved repositories are linked to the selected Workspace and monitored automatically.
+10. Backend adds GitHub collaborators/contributors as expected contributors.
+11. Backend adds up to five non-default branches changed during the previous two weeks.
+12. User can remove expected contributors or add more branches.
+13. Dashboard becomes available.
 ```
 
 ## Repository Monitoring Rule
@@ -343,6 +338,25 @@ SyncRun
 - startedAt
 - finishedAt
 - error
+
+RepositoryAccessRequest
+- workspaceId
+- requesterId
+- installationId
+- accountLogin
+- accountType
+- repositorySelection
+- status: PENDING | APPROVED | PARTIALLY_APPROVED | REJECTED
+- reviewedById
+- reviewedAt
+
+RepositoryAccessRequestItem
+- requestId
+- githubRepoId
+- repository metadata snapshot
+- status: PENDING | APPROVED | REJECTED
+- repositoryId
+- pendingKey
 ```
 
 ## Project Structure
@@ -379,6 +393,7 @@ lib/
     commits.ts
     install-url.ts
     installations.ts
+    repository-access.ts
     people.ts
     sync.ts
 
