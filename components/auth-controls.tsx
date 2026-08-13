@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Github, LogOut } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getAuthSession } from "@/lib/auth";
 
 export async function AuthControls() {
@@ -8,10 +9,13 @@ export async function AuthControls() {
 
   if (!session?.user?.id) {
     return (
-      <Link className="button button-primary" href="/api/auth/signin">
-        <Github aria-hidden size={16} />
-        Sign in
-      </Link>
+      <div className="auth-controls">
+        <ThemeToggle />
+        <Link className="button button-primary" href="/api/auth/signin">
+          <Github aria-hidden size={16} />
+          Sign in
+        </Link>
+      </div>
     );
   }
 
@@ -29,10 +33,13 @@ export async function AuthControls() {
       <div className="identity">
         <span>{session.user.name ?? session.user.githubUsername ?? session.user.email}</span>
       </div>
-      <Link className="button button-secondary" href="/api/auth/signout">
-        <LogOut aria-hidden size={16} />
-        Sign out
-      </Link>
+      <div className="auth-actions">
+        <ThemeToggle />
+        <Link className="button button-secondary" href="/api/auth/signout">
+          <LogOut aria-hidden size={16} />
+          Sign out
+        </Link>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,18 @@ import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
 const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+const themeBootstrapScript = `
+  (() => {
+    try {
+      const savedTheme = window.localStorage.getItem("avericode-theme");
+      const theme = savedTheme === "light" || savedTheme === "dark"
+        ? savedTheme
+        : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    } catch {}
+  })();
+`;
 
 export const metadata: Metadata = {
   applicationName: "AveriCode",
@@ -36,7 +48,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body className={GeistSans.variable}>{children}</body>
     </html>
   );
