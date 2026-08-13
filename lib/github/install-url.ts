@@ -1,10 +1,10 @@
 import { GitHubAccountType } from "@prisma/client";
 
 export function getGitHubAppInstallUrl(workspaceId: string) {
-  return `/api/github/install?workspaceId=${encodeURIComponent(workspaceId)}`;
+  return `/settings/repositories?workspaceId=${encodeURIComponent(workspaceId)}`;
 }
 
-export function getGitHubAppExternalInstallUrl(workspaceId: string) {
+export function getGitHubAppExternalInstallUrl(state: string) {
   const slug = process.env.GITHUB_APP_SLUG?.trim();
 
   if (!slug) {
@@ -12,7 +12,7 @@ export function getGitHubAppExternalInstallUrl(workspaceId: string) {
   }
 
   const url = new URL(`https://github.com/apps/${slug}/installations/new`);
-  url.searchParams.set("state", workspaceId);
+  url.searchParams.set("state", state);
   return url.toString();
 }
 

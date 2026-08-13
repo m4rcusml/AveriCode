@@ -49,20 +49,35 @@ enum SyncSchedule {
   MONTHLY
 }
 
+enum RepositoryAccessRequestStatus {
+  PENDING
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
+}
+
+enum RepositoryAccessRequestItemStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
-  id              String            @id @default(cuid())
-  name            String?
-  email           String?           @unique
-  emailVerified   DateTime?
-  image           String?
-  githubUserId    String?           @unique
-  githubUsername  String?           @unique
-  accounts        Account[]
-  sessions        Session[]
-  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
-  memberships     WorkspaceMember[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                               String                    @id @default(cuid())
+  name                             String?
+  email                            String?                   @unique
+  emailVerified                    DateTime?
+  image                            String?
+  githubUserId                     String?                   @unique
+  githubUsername                   String?                   @unique
+  accounts                         Account[]
+  sessions                         Session[]
+  ownedWorkspaces                  Workspace[]               @relation("WorkspaceOwner")
+  memberships                      WorkspaceMember[]
+  repositoryAccessRequests         RepositoryAccessRequest[] @relation("RepositoryAccessRequestRequester")
+  reviewedRepositoryAccessRequests RepositoryAccessRequest[] @relation("RepositoryAccessRequestReviewer")
+  createdAt                        DateTime                  @default(now())
+  updatedAt                        DateTime                  @updatedAt
 }
 
 model Account {
@@ -101,19 +116,20 @@ model VerificationToken {
 }
 
 model Workspace {
-  id                  String               @id @default(cuid())
-  name                String
-  slug                String               @unique
-  ownerId             String
-  owner               User                 @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  members             WorkspaceMember[]
-  installations       GitHubInstallation[]
-  repositories        Repository[]
-  syncRuns            SyncRun[]
-  syncSchedule        SyncSchedule         @default(WEEKLY)
-  lastScheduledSyncAt DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  id                       String                    @id @default(cuid())
+  name                     String
+  slug                     String                    @unique
+  ownerId                  String
+  owner                    User                      @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members                  WorkspaceMember[]
+  installations            GitHubInstallation[]
+  repositories             Repository[]
+  syncRuns                 SyncRun[]
+  repositoryAccessRequests RepositoryAccessRequest[]
+  syncSchedule             SyncSchedule              @default(WEEKLY)
+  lastScheduledSyncAt      DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
 }
 
 model WorkspaceMember {
@@ -147,28 +163,73 @@ model GitHubInstallation {
 }
 
 model Repository {
-  id                   String                   @id @default(cuid())
+  id                   String                        @id @default(cuid())
   workspaceId          String
   githubInstallationId String
   githubRepoId         String
   owner                String
   name                 String
   fullName             String
-  private              Boolean                  @default(false)
+  private              Boolean                       @default(false)
   defaultBranch        String?
-  isActive             Boolean                  @default(true)
+  isActive             Boolean                       @default(true)
   lastSyncedAt         DateTime?
-  workspace            Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  installation         GitHubInstallation       @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
+  workspace            Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  installation         GitHubInstallation            @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
   branches             RepositoryBranch[]
   contributors         RepositoryContributor[]
   snapshots            CommitActivitySnapshot[]
   syncRuns             SyncRun[]
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
+  accessRequestItems   RepositoryAccessRequestItem[]
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
 
   @@unique([workspaceId, githubRepoId])
   @@index([workspaceId, isActive])
+}
+
+model RepositoryAccessRequest {
+  id                  String                        @id @default(cuid())
+  workspaceId         String
+  requesterId         String
+  installationId      String
+  accountLogin        String
+  accountType         GitHubAccountType
+  repositorySelection RepositorySelection
+  status              RepositoryAccessRequestStatus @default(PENDING)
+  reviewedById        String?
+  reviewedAt          DateTime?
+  workspace           Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requester           User                          @relation("RepositoryAccessRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  reviewedBy          User?                         @relation("RepositoryAccessRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  items               RepositoryAccessRequestItem[]
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+
+  @@index([workspaceId, status, createdAt])
+  @@index([requesterId, createdAt])
+}
+
+model RepositoryAccessRequestItem {
+  id            String                            @id @default(cuid())
+  requestId     String
+  githubRepoId  String
+  owner         String
+  name          String
+  fullName      String
+  private       Boolean                           @default(false)
+  defaultBranch String?
+  status        RepositoryAccessRequestItemStatus @default(PENDING)
+  repositoryId  String?
+  pendingKey    String?                           @unique
+  request       RepositoryAccessRequest           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  repository    Repository?                       @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  createdAt     DateTime                          @default(now())
+  updatedAt     DateTime                          @updatedAt
+
+  @@unique([requestId, githubRepoId])
+  @@index([requestId, status])
+  @@index([githubRepoId])
 }
 
 model RepositoryBranch {

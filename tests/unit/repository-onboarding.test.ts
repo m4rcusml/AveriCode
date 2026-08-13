@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     repository: {
       deleteMany: vi.fn(),
       findMany: vi.fn(),
-      upsert: vi.fn()
+      update: vi.fn()
     },
     repositoryBranch: {
       createMany: vi.fn()
@@ -73,7 +73,7 @@ describe("repository onboarding", () => {
     mocks.prisma.gitHubInstallation.update.mockResolvedValue({});
     mocks.prisma.repository.deleteMany.mockResolvedValue({ count: 0 });
     mocks.prisma.repository.findMany.mockResolvedValue([]);
-    mocks.prisma.repository.upsert.mockResolvedValue({
+    mocks.prisma.repository.update.mockResolvedValue({
       id: "repository-1",
       githubRepoId: "456",
       owner: "avericode",
@@ -103,41 +103,17 @@ describe("repository onboarding", () => {
     mocks.prisma.repositoryBranch.createMany.mockResolvedValue({ count: 5 });
   });
 
-  test("automatically monitors a new repository and configures contributors and recent branches", async () => {
+  test("does not automatically add newly accessible repositories during refresh", async () => {
     const result = await importInstallationRepositories("installation-record-1");
 
-    expect(mocks.prisma.repository.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({ isActive: true }),
-        update: expect.objectContaining({ isActive: true })
-      })
-    );
-    expect(mocks.addExpectedContributorsToRepository).toHaveBeenCalledWith(
-      "repository-1",
-      expect.arrayContaining([expect.objectContaining({ username: "octocat" })])
-    );
-    expect(mocks.prisma.repositoryBranch.createMany).toHaveBeenCalledWith({
-      data: [
-        { repositoryId: "repository-1", name: "feature/1" },
-        { repositoryId: "repository-1", name: "feature/2" },
-        { repositoryId: "repository-1", name: "feature/3" },
-        { repositoryId: "repository-1", name: "feature/4" },
-        { repositoryId: "repository-1", name: "feature/5" }
-      ],
-      skipDuplicates: true
-    });
-    expect(result[0]).toMatchObject({
-      wasExisting: false,
-      setup: {
-        expectedContributorCount: 1,
-        monitoredBranchCount: 5,
-        warnings: []
-      }
-    });
+    expect(mocks.prisma.repository.update).not.toHaveBeenCalled();
+    expect(mocks.addExpectedContributorsToRepository).not.toHaveBeenCalled();
+    expect(mocks.prisma.repositoryBranch.createMany).not.toHaveBeenCalled();
+    expect(result).toEqual([]);
   });
 
   test("preserves contributor and branch choices when refreshing an existing repository", async () => {
-    mocks.prisma.repository.findMany.mockResolvedValue([{ githubRepoId: "456" }]);
+    mocks.prisma.repository.findMany.mockResolvedValue([{ id: "repository-1", githubRepoId: "456" }]);
 
     const result = await importInstallationRepositories("installation-record-1");
 
@@ -145,6 +121,10 @@ describe("repository onboarding", () => {
     expect(mocks.fetchRecentlyUpdatedRepositoryBranches).not.toHaveBeenCalled();
     expect(mocks.addExpectedContributorsToRepository).not.toHaveBeenCalled();
     expect(mocks.prisma.repositoryBranch.createMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.repository.update).toHaveBeenCalledWith({
+      where: { id: "repository-1" },
+      data: expect.objectContaining({ fullName: "avericode/app", isActive: true })
+    });
     expect(result[0]).toMatchObject({
       wasExisting: true,
       setup: null

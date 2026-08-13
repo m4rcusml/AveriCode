@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { getGitHubAppExternalInstallUrl } from "@/lib/github/install-url";
+import { createGitHubSetupState } from "@/lib/github/setup-state";
 import {
   getSelectedWorkspaceForUser,
-  setPendingGitHubSetupWorkspaceForUser,
+  setPendingGitHubSetupStateForUser,
   setSelectedWorkspaceForUser
 } from "@/lib/workspace-selection";
-import { assertWorkspaceWriteAccess } from "@/lib/workspaces";
+import { assertWorkspaceAccess } from "@/lib/workspaces";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +32,17 @@ export async function GET(request: NextRequest) {
     : await getSelectedWorkspaceForUser(session.user.id);
 
   try {
-    await assertWorkspaceWriteAccess(session.user.id, workspace.id);
+    await assertWorkspaceAccess(session.user.id, workspace.id);
+    const setupState = createGitHubSetupState(session.user.id, workspace.id);
 
-    const installUrl = getGitHubAppExternalInstallUrl(workspace.id);
+    const installUrl = getGitHubAppExternalInstallUrl(setupState);
 
     if (!installUrl) {
       return redirectWithInstallError(request, "missing_github_app_slug");
     }
 
     await setSelectedWorkspaceForUser(session.user.id, workspace.id);
-    await setPendingGitHubSetupWorkspaceForUser(session.user.id, workspace.id);
+    await setPendingGitHubSetupStateForUser(session.user.id, workspace.id, setupState);
 
     return NextResponse.redirect(installUrl);
   } catch {

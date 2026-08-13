@@ -38,7 +38,7 @@ export function GitHubSetupNotice({ imported, setupAction, setupError }: GitHubS
     },
     workspace_permission_denied: {
       title: "Workspace permission required.",
-      body: "Only workspace owners and admins can connect or update GitHub App access."
+      body: "You must be a workspace member to connect or request GitHub repositories."
     }
   };
   const content = messages[error] ?? {

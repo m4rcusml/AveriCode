@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
-import { persistInstallationFromSetup } from "@/lib/github/installations";
+import { verifyLinkableGitHubInstallation } from "@/lib/github/repository-access";
+import { verifyGitHubSetupState } from "@/lib/github/setup-state";
 import {
-  clearPendingGitHubSetupWorkspace,
-  getPendingGitHubSetupWorkspaceId,
-  getSelectedWorkspaceForUser,
+  clearPendingGitHubSetupState,
+  getPendingGitHubSetupState,
   setSelectedWorkspaceForUser
 } from "@/lib/workspace-selection";
-import { assertWorkspaceWriteAccess } from "@/lib/workspaces";
+import { assertWorkspaceAccess } from "@/lib/workspaces";
 
 export const dynamic = "force-dynamic";
 
@@ -33,44 +33,44 @@ export async function GET(request: NextRequest) {
   const installationId = request.nextUrl.searchParams.get("installation_id");
 
   if (!installationId) {
-    await clearPendingGitHubSetupWorkspace();
+    await clearPendingGitHubSetupState();
     return redirectWithSetupError(request, {
       setup_error: "missing_installation_id",
       setup_action: request.nextUrl.searchParams.get("setup_action") ?? "unknown"
     });
   }
 
-  const stateWorkspaceId = request.nextUrl.searchParams.get("state");
-  const pendingWorkspaceId = await getPendingGitHubSetupWorkspaceId();
-  const setupWorkspaceId = stateWorkspaceId ?? pendingWorkspaceId;
-  const workspace = setupWorkspaceId
-    ? { id: setupWorkspaceId }
-    : await getSelectedWorkspaceForUser(session.user.id);
+  const stateToken = request.nextUrl.searchParams.get("state");
+  const pendingState = await getPendingGitHubSetupState();
 
   try {
-    await assertWorkspaceWriteAccess(session.user.id, workspace.id);
-    const result = await persistInstallationFromSetup(workspace.id, installationId);
-    await setSelectedWorkspaceForUser(session.user.id, workspace.id);
-    await clearPendingGitHubSetupWorkspace();
-    const nextRepository =
-      result.newRepositories.length === 1
-        ? result.newRepositories[0]
-        : result.importedRepositories.length === 1
-          ? result.importedRepositories[0]
-          : null;
-    const redirectUrl = new URL(
-      nextRepository
-        ? `/dashboard/repositories/${nextRepository.id}/contributors`
-        : "/dashboard",
-      request.nextUrl.origin
-    );
-
-    redirectUrl.searchParams.set("workspaceId", workspace.id);
-    redirectUrl.searchParams.set("imported", String(result.importedCount));
+    await clearPendingGitHubSetupState();
+    if (!stateToken || !pendingState || stateToken !== pendingState) {
+      throw new Error("Invalid or already used GitHub setup state.");
+    }
+    const state = verifyGitHubSetupState(stateToken, session.user.id);
+    await assertWorkspaceAccess(session.user.id, state.workspaceId);
+    await verifyLinkableGitHubInstallation(session.user.id, installationId);
+    await setSelectedWorkspaceForUser(session.user.id, state.workspaceId);
+    const redirectUrl = new URL("/settings/repositories", request.nextUrl.origin);
+    redirectUrl.searchParams.set("workspaceId", state.workspaceId);
+    redirectUrl.searchParams.set("installationId", installationId);
+    redirectUrl.searchParams.set("setup", "github_complete");
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
-    await clearPendingGitHubSetupWorkspace();
-    const message = error instanceof Error ? error.message : "GitHub setup failed.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    await clearPendingGitHubSetupState();
+    const redirectUrl = new URL("/settings/repositories", request.nextUrl.origin);
+    const message = error instanceof Error ? error.message : "";
+    redirectUrl.searchParams.set(
+      "setup_error",
+      message.includes("expired")
+        ? "setup_state_expired"
+        : message.includes("not available")
+          ? "installation_not_authorized"
+          : message.includes("authorization is missing")
+            ? "github_reauthorization_required"
+            : "invalid_setup_state"
+    );
+    return NextResponse.redirect(redirectUrl);
   }
 }

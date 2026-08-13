@@ -12,6 +12,10 @@ import {
   updateRepositoryContributor
 } from "@/lib/repository-config";
 import { importInstallationRepositories } from "@/lib/github/installations";
+import {
+  connectRepositoriesToWorkspace,
+  resolveRepositoryAccessRequest
+} from "@/lib/github/repository-access";
 import { getManualSyncCooldown, syncRepositoryActivity } from "@/lib/github/sync";
 import { prisma } from "@/lib/prisma";
 import { parseSyncSchedule } from "@/lib/sync-schedule";
@@ -183,6 +187,75 @@ export async function switchWorkspaceAction(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/settings");
   redirect(destination);
+}
+
+export async function connectRepositoriesToWorkspaceAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = stringValue(formData, "workspaceId");
+  const installationId = stringValue(formData, "installationId");
+  const githubRepoIds = formData
+    .getAll("githubRepoId")
+    .filter((value): value is string => typeof value === "string");
+  const destination = `/settings/repositories?workspaceId=${encodeURIComponent(workspaceId)}&installationId=${encodeURIComponent(installationId)}`;
+
+  let resultKind: "connected" | "request";
+
+  try {
+    const result = await connectRepositoriesToWorkspace({
+      userId: user.id,
+      workspaceId,
+      installationId,
+      githubRepoIds
+    });
+    resultKind = result.kind;
+    revalidatePath("/dashboard");
+    revalidatePath("/settings");
+  } catch (error) {
+    const code =
+      error instanceof Error && error.message.includes("pending request")
+        ? "request_already_pending"
+        : error instanceof Error && error.message.includes("already connected")
+          ? "repository_already_connected"
+          : error instanceof Error && error.message.includes("Sign in with GitHub again")
+            ? "github_reauthorization_required"
+            : "connect_failed";
+    redirect(`${destination}&connect_error=${code}`);
+  }
+
+  redirect(
+    `${destination}&connect_success=${resultKind === "request" ? "request_created" : "repositories_connected"}`
+  );
+}
+
+export async function resolveRepositoryAccessRequestAction(formData: FormData) {
+  const user = await requireUser();
+  const requestId = stringValue(formData, "requestId");
+  const approvedItemIds = formData
+    .getAll("approvedItemId")
+    .filter((value): value is string => typeof value === "string");
+
+  try {
+    await resolveRepositoryAccessRequest({
+      reviewerUserId: user.id,
+      requestId,
+      approvedItemIds
+    });
+  } catch (error) {
+    redirectWithSettingsStatus("/settings", {
+      settings_error:
+        error instanceof Error && error.message === "Workspace owner role required."
+          ? "repository_request_owner_required"
+          : error instanceof Error && error.message.includes("no longer")
+            ? "repository_request_stale"
+            : "repository_request_failed"
+    });
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/settings");
+  redirectWithSettingsStatus("/settings", {
+    settings_success: "repository_request_resolved"
+  });
 }
 
 export async function addExpectedContributorAction(formData: FormData) {

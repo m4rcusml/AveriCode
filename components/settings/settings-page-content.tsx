@@ -1,5 +1,6 @@
 import { GitHubAccountsSection } from "@/components/settings/github-accounts-section";
 import { ScheduledSyncSection } from "@/components/settings/scheduled-sync-section";
+import { RepositoryAccessRequestsSection } from "@/components/settings/repository-access-requests-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { SettingsNotice, type SettingsSearchParams } from "@/components/settings/settings-notice";
 import { SettingsSummary } from "@/components/settings/settings-summary";
@@ -27,6 +28,10 @@ export function SettingsPageContent({ data, searchParams }: SettingsPageContentP
         workspaceId={data.workspace.id}
       />
       <GitHubAccountsSection installUrl={data.installUrl} installations={data.installations} />
+      <RepositoryAccessRequestsSection
+        isWorkspaceOwner={data.isWorkspaceOwner}
+        requests={data.repositoryAccessRequests}
+      />
       <ScheduledSyncSection
         isWorkspaceOwner={data.isWorkspaceOwner}
         workspace={data.workspace}

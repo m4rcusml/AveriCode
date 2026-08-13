@@ -1,14 +1,14 @@
-import { ExternalLink } from "lucide-react";
+import { Github } from "lucide-react";
 import { RepositoryCard } from "@/components/dashboard/repository-card";
 import type { DashboardInstallation } from "@/lib/dashboard/queries";
-import { getGitHubInstallationSettingsUrl } from "@/lib/github/install-url";
 
 type RepositoryListProps = {
+  addRepositoriesUrl: string | null;
   returnTo: string;
   selectedInstallation: DashboardInstallation | null;
 };
 
-export function RepositoryList({ returnTo, selectedInstallation }: RepositoryListProps) {
+export function RepositoryList({ addRepositoriesUrl, returnTo, selectedInstallation }: RepositoryListProps) {
   return (
     <section className="repository-card-grid" aria-label="Repositories">
       {selectedInstallation?.repositories.length ? (
@@ -19,16 +19,14 @@ export function RepositoryList({ returnTo, selectedInstallation }: RepositoryLis
         <div className="empty-state dashboard-empty">
           <div>
             <h2>No repositories imported for this account</h2>
-            <p>Refresh repository access after selecting repositories in the GitHub App installation.</p>
-            {selectedInstallation ? (
+            <p>Select repositories explicitly to connect them to this workspace.</p>
+            {addRepositoriesUrl ? (
               <a
                 className="button button-primary"
-                href={getGitHubInstallationSettingsUrl(selectedInstallation)}
-                rel="noreferrer"
-                target="_blank"
+                href={addRepositoriesUrl}
               >
-                Configure access
-                <ExternalLink aria-hidden size={14} />
+                <Github aria-hidden size={16} />
+                Add repositories
               </a>
             ) : null}
           </div>
