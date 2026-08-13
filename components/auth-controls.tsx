@@ -21,6 +21,13 @@ export async function AuthControls() {
 
   return (
     <div className="auth-controls">
+      <div className="auth-actions">
+        <ThemeToggle />
+        <Link className="button button-secondary" href="/api/auth/signout">
+          <LogOut aria-hidden size={16} />
+          Sign out
+        </Link>
+      </div>
       {session.user.image ? (
         <Image
           alt=""
@@ -32,13 +39,6 @@ export async function AuthControls() {
       ) : null}
       <div className="identity">
         <span>{session.user.name ?? session.user.githubUsername ?? session.user.email}</span>
-      </div>
-      <div className="auth-actions">
-        <ThemeToggle />
-        <Link className="button button-secondary" href="/api/auth/signout">
-          <LogOut aria-hidden size={16} />
-          Sign out
-        </Link>
       </div>
     </div>
   );
