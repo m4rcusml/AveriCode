@@ -14,8 +14,13 @@ export default function AppLayout({
     <div className="app-shell">
       <header className="topbar">
         <Link className="brand" href="/dashboard">
-          <Image alt="" aria-hidden className="brand-logo" height={34} priority src="/logo.svg" width={42} />
-          AveriCode
+          <span className="brand-mark">
+            <Image alt="" aria-hidden className="brand-logo" height={34} priority src="/logo.svg" width={42} />
+          </span>
+          <span className="brand-copy">
+            <span className="brand-wordmark"><span>Averi</span><strong>Code</strong></span>
+            <span className="brand-tagline">Contributor intelligence</span>
+          </span>
         </Link>
         <WorkspaceSwitcher />
         <nav className="nav" aria-label="Primary navigation">

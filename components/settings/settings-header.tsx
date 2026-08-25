@@ -10,6 +10,10 @@ export function SettingsHeader({ installUrl, workspace }: SettingsHeaderProps) {
   return (
     <div className="page-header">
       <div>
+        <p className="page-eyebrow">
+          <span className="signal-square" aria-hidden />
+          Control room / workspace configuration
+        </p>
         <h1 className="page-title">Settings</h1>
         <p className="page-copy">
           Workspace, members, GitHub accounts, and system configuration for <strong>{workspace.name}</strong>.

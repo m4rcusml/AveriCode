@@ -16,6 +16,9 @@ export function RepositoryCard({ repository, returnTo }: RepositoryCardProps) {
     <article className="repository-card">
       <div className="repository-card-header">
         <div className="repository-card-title">
+          <p className="repository-eyebrow">
+            Repository / {repository.private ? "private" : "public"}
+          </p>
           <div className="repository-title-line">
             <h2>{repository.fullName}</h2>
           </div>
