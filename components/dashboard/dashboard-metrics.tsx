@@ -10,6 +10,7 @@ export function DashboardMetrics({ metrics }: DashboardMetricsProps) {
   return (
     <section className="metric-grid" aria-label="Workspace activity metrics">
       <div className="metric-card">
+        <span className="metric-index" aria-hidden>01</span>
         <div className="metric-label">
           <GitBranch aria-hidden size={16} />
           Monitored repositories
@@ -18,6 +19,7 @@ export function DashboardMetrics({ metrics }: DashboardMetricsProps) {
         <div className="metric-note">{metrics.totalRepositoryCount} imported total</div>
       </div>
       <div className="metric-card">
+        <span className="metric-index" aria-hidden>02</span>
         <div className="metric-label">
           <Activity aria-hidden size={16} />
           Active contributors
@@ -26,6 +28,7 @@ export function DashboardMetrics({ metrics }: DashboardMetricsProps) {
         <div className="metric-note">Expected contributors with commits</div>
       </div>
       <div className="metric-card">
+        <span className="metric-index" aria-hidden>03</span>
         <div className="metric-label">
           <AlertCircle aria-hidden size={16} />
           Inactive contributors
@@ -38,6 +41,7 @@ export function DashboardMetrics({ metrics }: DashboardMetricsProps) {
         </div>
       </div>
       <div className="metric-card">
+        <span className="metric-index" aria-hidden>04</span>
         <div className="metric-label">
           <Clock aria-hidden size={16} />
           Last sync

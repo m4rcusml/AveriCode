@@ -10,6 +10,10 @@ export function DashboardHeader({ installUrl, workspace }: DashboardHeaderProps)
   return (
     <div className="page-header">
       <div>
+        <p className="page-eyebrow">
+          <span className="signal-square" aria-hidden />
+          Workspace overview / last 7 days
+        </p>
         <h1 className="page-title">
           You are in <span className="workspace-title-highlight">{workspace.name}</span>
         </h1>

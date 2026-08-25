@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
 const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
@@ -9,7 +10,7 @@ const themeBootstrapScript = `
       const savedTheme = window.localStorage.getItem("avericode-theme");
       const theme = savedTheme === "light" || savedTheme === "dark"
         ? savedTheme
-        : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        : "light";
       document.documentElement.dataset.theme = theme;
       document.documentElement.style.colorScheme = theme;
     } catch {}
@@ -52,7 +53,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
-      <body className={GeistSans.variable}>{children}</body>
+      <body className={`${GeistSans.variable} ${GeistMono.variable}`}>{children}</body>
     </html>
   );
 }
