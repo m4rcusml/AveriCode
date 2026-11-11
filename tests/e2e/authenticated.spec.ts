@@ -43,8 +43,8 @@ test.describe("authenticated app smoke", () => {
       has: page.locator(".project-presence small", { hasText: /^Sem dado atual/ })
     }).first();
     test.skip(!(await unknownProject.count()), "A project without current evidence is required.");
-    await expect(unknownProject.getByRole("img")).toHaveAttribute("aria-label", /Sem dado atual/);
-    await expect(unknownProject.getByRole("img")).not.toHaveAttribute("aria-label", /janela válida/);
+    await expect(unknownProject.locator(".presence-ruler")).toHaveAttribute("aria-label", /Sem dado atual/);
+    await expect(unknownProject.locator(".presence-ruler")).not.toHaveAttribute("aria-label", /janela válida/);
   });
 });
 
