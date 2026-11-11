@@ -27,8 +27,8 @@ async function configureExpectedContributors(repositoryId: string, inputs: Expec
     });
     result.push(await prisma.repositoryContributor.upsert({
       where: { repositoryId_contributorId: { repositoryId, contributorId: contributor.id } },
-      update: { isExpected: true, isIgnored: false },
-      create: { repositoryId, contributorId: contributor.id, isExpected: true, isIgnored: false },
+      update: { isExpected: true, isIgnored: false, source: "MANUAL" },
+      create: { repositoryId, contributorId: contributor.id, isExpected: true, isIgnored: false, source: "MANUAL" },
       select: { id: true, repositoryId: true, contributorId: true, isExpected: true, isIgnored: true, contributor: { select: { username: true } } }
     }));
   }
@@ -81,7 +81,7 @@ export async function updateRepositoryContributor(
 
   return prisma.repositoryContributor.update({
     where: { id: repositoryContributorId },
-    data: input
+    data: { ...input, source: "MANUAL" }
   });
 }
 

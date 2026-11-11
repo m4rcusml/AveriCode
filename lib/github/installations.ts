@@ -1,5 +1,5 @@
 import { GitHubAccountType, RepositorySelection } from "@prisma/client";
-import { addExpectedContributorsToRepository } from "@/lib/contributors";
+import { reconcileRepositoryContributors } from "@/lib/contributors";
 import { fetchRecentlyUpdatedRepositoryBranches } from "@/lib/github/commits";
 import { fetchRepositoryPeopleSuggestions } from "@/lib/github/people";
 import { prisma } from "@/lib/prisma";
@@ -62,8 +62,8 @@ function mapRepositorySelection(selection: GitHubInstallationResponse["repositor
   return selection === "all" ? RepositorySelection.ALL : RepositorySelection.SELECTED;
 }
 
-export async function fetchGitHubInstallation(installationId: string) {
-  return githubAppRequest<GitHubInstallationResponse>(`/app/installations/${installationId}`);
+export async function fetchGitHubInstallation(installationId: string, options: { signal?: AbortSignal } = {}) {
+  return githubAppRequest<GitHubInstallationResponse>(`/app/installations/${installationId}`, { signal: options.signal });
 }
 
 export async function fetchGitHubAppInstallations() {
@@ -84,14 +84,16 @@ export async function fetchGitHubAppInstallations() {
   return installations;
 }
 
-async function fetchInstallationRepositoriesWithToken(token: string) {
+async function fetchInstallationRepositoriesWithToken(token: string, options: { signal?: AbortSignal } = {}) {
   const repositories: GitHubRepositoryResponse[] = [];
 
   for (let page = 1; ; page += 1) {
+    options.signal?.throwIfAborted();
     const response = await githubRequest<GitHubRepositoriesResponse>(
       `/installation/repositories?per_page=100&page=${page}`,
       {
-        bearerToken: token
+        bearerToken: token,
+        signal: options.signal
       }
     );
 
@@ -148,11 +150,11 @@ export async function configureNewRepository(
   if (peopleResult.status === "fulfilled") {
     warnings.push(...peopleResult.value.errors);
     try {
-      const addedContributors = await addExpectedContributorsToRepository(
+      const addedContributors = peopleResult.value.errors.length === 0 ? await reconcileRepositoryContributors(
         repository.id,
         peopleResult.value.allPeople,
-        { preserveExisting: true, signal: options.signal }
-      );
+        { signal: options.signal }
+      ) : [];
       expectedContributorCount = addedContributors.length;
     } catch (error) {
       warnings.push(
@@ -248,11 +250,12 @@ export async function userOwnsGitHubInstallation(
   );
 }
 
-export async function importInstallationRepositories(githubInstallationId: string) {
+export async function importInstallationRepositories(githubInstallationId: string, options: { signal?: AbortSignal } = {}) {
+  options.signal?.throwIfAborted();
   const installation = await prisma.gitHubInstallation.findUniqueOrThrow({
     where: { id: githubInstallationId }
   });
-  const githubInstallation = await fetchGitHubInstallation(installation.installationId);
+  const githubInstallation = await fetchGitHubInstallation(installation.installationId, options);
 
   await prisma.gitHubInstallation.update({
     where: { id: installation.id },
@@ -266,8 +269,8 @@ export async function importInstallationRepositories(githubInstallationId: strin
 
   // Suspended installations cannot mint tokens; keep the user's configuration for recovery.
   if (githubInstallation.suspended_at) return [];
-  const token = await getInstallationAccessToken(installation.installationId);
-  const repositories = await fetchInstallationRepositoriesWithToken(token);
+  const token = await getInstallationAccessToken(installation.installationId, { signal: options.signal });
+  const repositories = await fetchInstallationRepositoriesWithToken(token, options);
   const repositoriesById = new Map(
     repositories.map((repository) => [String(repository.id), repository])
   );
@@ -299,6 +302,7 @@ export async function importInstallationRepositories(githubInstallationId: strin
   const importedRepositories: ImportedRepository[] = [];
 
   for (const existingRepository of existingRepositories) {
+    options.signal?.throwIfAborted();
     const repository = repositoriesById.get(existingRepository.githubRepoId);
 
     if (!repository) {
@@ -318,7 +322,7 @@ export async function importInstallationRepositories(githubInstallationId: strin
     });
 
     const setup = existingRepository.configurationError
-      ? await configureNewRepository(savedRepository, token)
+      ? await configureNewRepository(savedRepository, token, options)
       : null;
     importedRepositories.push({
       id: savedRepository.id,

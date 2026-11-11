@@ -21,3 +21,69 @@
 .topbar-label,.identity,.auth-controls .button,.sidebar-bottom,.sidebar-note>span,.workspace-switcher-trigger,.workspace-option small,.workspace-switcher-heading{font-size:12px}.nav a{font-size:13px}.button{font-size:12px;min-height:38px}.button-quiet{min-height:34px}.executive-brief span:not(.brief-number){font-size:12px}.executive-brief strong{font-size:11px}.portfolio-context,.portfolio-context .text-link,.results-count{font-size:11px}.portfolio-filters input,.portfolio-filters select,.portfolio-filters .button{font-size:12px;min-height:36px}.portfolio-table-head{font-size:11px}.project-summary{min-height:96px}.project-summary small,.project-owner,.project-last-change>span,.status-badge{font-size:11px}.project-name strong{font-size:14px}.project-sync-action{top:31px}.branch-summary,.branch-chip,.snapshot-note{font-size:11px}.contributor-copy strong{font-size:13px}.contributor-copy span,.contributor-commit,.contributor-commit small,.contributor-actions .button{font-size:11px}.portfolio-legend{font-size:11px}.update-meta,.update-details,.update-details code,.feed-footnote,.feed-empty p,.portfolio-footnote{font-size:11px}.update-message{font-size:14px}.panel-heading h2{font-size:16px}.panel-heading p{font-size:11px}.data-table{font-size:12px}.data-table th,.data-table .button,.data-table select,.cell-subtitle,.metric-label,.metric-note,.field label{font-size:11px}.portfolio-person strong{font-size:14px}.portfolio-person small,.person-projects a{font-size:12px}.onboarding-steps strong{font-size:13px}.onboarding-steps span,.small-note{font-size:12px!important}.login-box-footnote,.public-footer{font-size:12px}
 @media(max-width:600px){.topbar-label{font-size:11px}.nav a{font-size:11px;padding-inline:5px}.workspace-switcher-trigger{font-size:11px}.executive-brief span:not(.brief-number){font-size:12px}.executive-brief strong{font-size:10px}.portfolio-context,.portfolio-context .text-link{font-size:11px}.project-summary .status-badge,.project-summary small,.project-owner,.project-last-change>small{font-size:11px}.project-summary{min-height:172px;padding:18px 12px;gap:20px 8px}.project-state{padding-right:34px}.project-name{padding-right:0}.project-name strong{font-size:14px}.project-sync-action{top:19px;right:8px}.project-last-change>span{font-size:12px}.branch-summary,.branch-chip,.snapshot-note,.contributor-copy span,.contributor-commit,.contributor-commit small,.contributor-actions .button,.portfolio-legend,.results-count{font-size:11px}.project-detail-toolbar .button{font-size:11px}.portfolio-footnote,.feed-footnote,.update-meta,.update-details,.update-details code{font-size:12px}.icon-button{min-height:38px;min-width:34px}.portfolio-header>.button-row .button{font-size:12px}.portfolio-filters input,.portfolio-filters select{font-size:13px}.project-state .status-badge{white-space:normal}.brief-number{font-size:28px}.brief-number small{font-size:15px}}
 @media(min-width:1251px){.updates-feed{max-height:750px;overflow-y:auto;padding-right:8px;scrollbar-width:thin;scrollbar-color:var(--border) var(--bg)}}
+
+/* Evidence graphics use the same forest, amber and unknown vocabulary as the text. */
+.visual-brief{grid-template-columns:1.1fr 1.45fr 1fr;padding-block:22px}
+.visual-brief>div,.visual-brief>a{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:13px;min-width:0}
+.visual-brief .brief-heading{display:flex;align-items:center;gap:12px;min-width:0}
+.visual-brief .brief-heading>span:not(.brief-number){font-size:12px}
+.visual-brief .brief-heading strong{font-size:11px;line-height:1.5}
+.visual-brief .brief-number{font-size:30px}
+.visual-brief .brief-heading>.avatar-group{margin-left:auto}
+.visual-brief .brief-people>.participation-visual>.participation-label{display:none}
+.sync-overview-bar,.participation-bar{height:9px;display:flex;flex-wrap:nowrap;width:100%;gap:0;border-radius:3px;overflow:hidden;background:var(--surface-muted);border:1px solid var(--border)}
+.sync-overview-bar>span,.participation-bar>span{min-width:0;flex-basis:0;display:block;height:100%}
+.sync-overview-bar>span+span,.participation-bar>span+span{border-left:2px solid var(--surface)}
+.bar-active{background:var(--primary)}
+.bar-inactive{background:var(--warning)}
+.bar-failed{background:var(--danger)}
+.bar-unknown{background:repeating-linear-gradient(135deg,var(--border) 0,var(--border) 3px,var(--surface) 3px,var(--surface) 6px)}
+.sync-overview-legend{display:flex;flex-wrap:wrap;gap:7px 12px}
+.sync-overview-legend a{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);text-underline-offset:3px}
+.sync-overview-legend a:hover{color:var(--primary);text-decoration:underline}
+.presence-failed{background:var(--danger);border-color:var(--danger)}
+.visual-brief .brief-attention{justify-content:center;gap:14px}
+.visual-brief .brief-review-link{display:flex;align-items:center;gap:7px;color:var(--primary);font-size:12px;font-weight:550}
+.visual-brief .brief-attention:hover .brief-review-link{text-decoration:underline}
+.participation-visual{display:flex;flex-direction:column;gap:7px;width:100%;min-width:0}
+.participation-counts{display:flex;flex-wrap:wrap;gap:6px 12px;color:var(--muted);line-height:1.5}
+.visual-brief .participation-counts>span{display:flex;align-items:center;gap:4px;font-size:11px}
+.participation-counts>span:nth-child(1){color:var(--success)}
+.participation-counts>span:nth-child(2){color:var(--warning)}
+.participation-label,.participation-unknown{font-size:11px;color:var(--muted);line-height:1.45}
+.participation-compact .participation-bar{max-width:150px}
+.project-presence{gap:8px}
+.project-presence .participation-visual{gap:5px}
+.project-summary{min-height:116px}
+.project-last-change>.recorded-commits{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--primary);font-weight:550;overflow:visible;-webkit-line-clamp:unset}
+.project-last-change>.recorded-commits svg{flex-shrink:0}
+.person-portrait{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;border:2px solid var(--surface);background:var(--primary-soft);color:var(--primary);font-size:9px;font-weight:650;flex-shrink:0;overflow:hidden}
+.person-portrait img{width:100%;height:100%;object-fit:cover}
+.avatar-group{display:inline-flex;align-items:center;isolation:isolate;width:max-content;max-width:100%}
+.avatar-group>.person-portrait+.person-portrait,.avatar-group>.avatar-overflow{margin-left:-6px}
+.avatar-overflow{display:inline-grid;place-items:center;min-width:26px;height:26px;padding-inline:3px;border:2px solid var(--surface);border-radius:50%;background:var(--surface-muted);color:var(--muted);font-size:10px;font-weight:550;z-index:1}
+.person-heading{display:flex;align-items:center;gap:9px}
+.person-heading .person-portrait{width:34px;height:34px;font-size:11px}
+.update-meta>span{display:flex;align-items:center;gap:6px;min-width:0}
+.update-meta>span svg{flex-shrink:0}
+.update-author{display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--muted);font-size:11px}
+.update-author .person-portrait{width:22px;height:22px;font-size:8px;border-width:1px}
+.update-details{margin-top:5px;padding-left:28px}
+.update-branch{display:inline-flex;align-items:center;gap:4px}
+.commit-prefix{display:inline-block;vertical-align:1px;font-size:10px;color:var(--primary);background:var(--primary-soft);border:1px solid var(--border);border-radius:3px;padding:1px 4px;margin-right:6px}
+@media(max-width:1250px){.visual-brief{grid-template-columns:1.1fr 1.4fr 1fr}.visual-brief>div,.visual-brief>a{padding-inline:16px}.visual-brief>:first-child{padding-left:0}.visual-brief .brief-heading{flex-wrap:wrap;gap:8px}.visual-brief .brief-heading>.avatar-group{margin-left:0}.visual-brief .brief-people .avatar-group{display:none}}
+@media(max-width:900px){.visual-brief .brief-number{font-size:27px}.visual-brief .brief-heading>span:not(.brief-number){font-size:11px}.visual-brief .brief-heading strong{font-size:10px}.visual-brief .participation-counts>span,.sync-overview-legend a{font-size:10px}}
+@media(max-width:600px){.visual-brief{grid-template-columns:1fr;gap:18px;padding-block:18px}.visual-brief>div,.visual-brief>a{padding:0;border-left:0;gap:12px}.visual-brief>div+div,.visual-brief>.brief-attention{border-top:1px solid var(--border);padding-top:17px}.visual-brief>.brief-attention{grid-column:auto;flex-direction:row;align-items:center;justify-content:space-between}.visual-brief .brief-attention .brief-heading{flex-wrap:nowrap}.visual-brief .brief-heading>span:not(.brief-number){font-size:12px}.visual-brief .brief-heading strong{font-size:11px;max-width:none}.visual-brief .brief-people .avatar-group{display:inline-flex;margin-left:auto}.visual-brief .participation-counts>span,.sync-overview-legend a{font-size:11px}.visual-brief .brief-review-link{font-size:11px;white-space:nowrap}.visual-brief .brief-number{font-size:28px}.project-summary{min-height:208px;row-gap:18px}.project-presence{padding-left:23px}.project-presence .participation-bar{height:9px}.project-last-change>.recorded-commits{font-size:11px;line-height:1.4}.project-last-change>.recorded-commits svg{width:12px}.person-portrait{width:24px;height:24px}.avatar-overflow{min-width:24px;height:24px}.project-last-change{gap:7px}.project-summary small.participation-unknown{font-size:10px}.update-author{font-size:12px}.visual-brief .brief-people .avatar-group .person-portrait{width:24px;height:24px}}
+.bar-unknown{background:repeating-linear-gradient(135deg,var(--muted) 0,var(--muted) 1px,var(--surface) 1px,var(--surface) 5px)}
+@media(max-width:600px){.visual-brief{grid-template-columns:1fr 1fr;gap:17px 0;align-items:start}.visual-brief .brief-heading{align-items:center;flex-wrap:wrap}.visual-brief>div+div{border-top:0;border-left:1px solid var(--border);padding:0 0 0 14px;margin-left:14px}.visual-brief>.brief-attention{grid-column:1/-1;padding-top:17px}.visual-brief .brief-people .avatar-group{display:none}.visual-brief .brief-heading>span:not(.brief-number){font-size:11px}.visual-brief .brief-heading strong{font-size:10px}.visual-brief .participation-counts>span,.sync-overview-legend a{font-size:11px}.visual-brief .brief-attention .brief-heading{flex-wrap:nowrap}.visual-brief .brief-attention .brief-heading>span:not(.brief-number){font-size:12px}.visual-brief .brief-attention strong{font-size:11px}.visual-brief .brief-projects>.brief-heading{min-height:65px}.visual-brief .brief-people>.brief-heading{min-height:65px}}
+.review-mobile-label{display:none}
+@media(max-width:600px){.visual-brief{padding-block:15px;row-gap:12px}.visual-brief .brief-heading strong{font-size:12px}.visual-brief .brief-heading>span:not(.brief-number){font-size:12px}.visual-brief .brief-people>.brief-heading,.visual-brief .brief-projects>.brief-heading{min-height:62px}.visual-brief>div{gap:10px}.visual-brief .participation-counts>span,.sync-overview-legend a{font-size:12px}.visual-brief .brief-attention{padding-top:11px;justify-content:flex-end}.visual-brief .brief-attention>.brief-heading{display:none}.visual-brief .brief-review-link{font-size:12px}.review-desktop-label{display:none}.review-mobile-label{display:inline}.visual-brief .participation-counts{gap:5px 9px}.visual-brief .brief-heading strong{line-height:1.45}.portfolio-context{padding-bottom:16px}.portfolio-section-title{padding-bottom:11px}}
+.portfolio-global-sync{position:relative}.portfolio-global-sync>.operation-feedback:not(:empty){display:block;max-width:330px;color:var(--muted);font-size:12px;line-height:1.6;margin-top:8px}
+@media(max-width:600px){.project-summary small,.project-summary .status-badge,.project-owner,.project-last-change>.recorded-commits,.participation-label,.participation-unknown,.project-summary small.participation-unknown{font-size:12px}.project-summary .person-portrait,.project-summary .avatar-overflow{font-size:11px;width:26px;height:26px;min-width:26px}.project-summary{min-height:216px}.project-presence{padding-left:0}.update-author .person-portrait{font-size:10px}.portfolio-page{padding-top:20px}.portfolio-header{margin-bottom:18px}.portfolio-header .page-copy{font-size:12px}.visual-brief .brief-heading strong{font-size:12px}.visual-brief .brief-projects>.brief-heading,.visual-brief .brief-people>.brief-heading{min-height:60px}.visual-brief .brief-people .brief-heading strong{display:none}}
+.section-copy+.button{margin-top:16px}
+#avericode-sync-notices{display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 36px);max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;padding:3px;scrollbar-gutter:stable}
+#avericode-sync-notices:empty{display:none}
+#avericode-sync-notices>.toast{flex-shrink:0;min-width:0}
+#avericode-sync-notices>.toast>div{min-width:0;overflow-wrap:anywhere}
+#avericode-sync-notices .toast-dismiss{min-width:32px;min-height:32px;align-self:flex-start;display:grid;place-items:center}
+@media(max-width:600px){#avericode-sync-notices .toast-dismiss{min-width:44px;min-height:44px}}

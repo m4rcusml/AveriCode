@@ -56,13 +56,29 @@ describe("server action redirects and recovery", () => {
     expect(mocks.updateRepositoryContributor).toHaveBeenCalledWith("user-1", "contributor-1", { isExpected: false });
   });
 
-  test("keeps a saved expected contributor when its automatic sync fails", async () => {
+  test("saves the expected contributor without coupling success to GitHub availability", async () => {
     mocks.syncRepositoryActivity.mockRejectedValue(new Error("GitHub unavailable"));
 
     await expect(addExpectedContributorAction(form("/dashboard")))
-      .rejects.toThrow("REDIRECT:/dashboard?manual_sync_error=sync_failed");
+      .rejects.toThrow("REDIRECT:/dashboard?contributors_saved=1");
     expect(mocks.addExpectedContributor).toHaveBeenCalledOnce();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  test("saving a configured contributor finishes without waiting for GitHub synchronization", async () => {
+    let finishSync: (() => void) | undefined;
+    mocks.syncRepositoryActivity.mockImplementation(() => new Promise<void>((resolve) => { finishSync = resolve; }));
+    const result = addExpectedContributorAction(form("/dashboard"))
+      .then(() => "resolved", (error: Error) => error.message);
+    try {
+      const outcome = await Promise.race([result, new Promise<string>((resolve) => setTimeout(() => resolve("STILL_PENDING_AFTER_SAVE"), 100))]);
+      expect(outcome).toBe("REDIRECT:/dashboard?contributors_saved=1");
+      expect(mocks.addExpectedContributor).toHaveBeenCalledOnce();
+      expect(mocks.syncRepositoryActivity).not.toHaveBeenCalled();
+    } finally {
+      finishSync?.();
+      await result;
+    }
   });
 
   test("manual configuration forwards only a username even if the form includes metadata", async () => {
@@ -70,14 +86,14 @@ describe("server action redirects and recovery", () => {
     input.set("email", "private@example.test");
     input.set("name", "Poisoned name");
     input.set("githubUserId", "42");
-    await expect(addExpectedContributorAction(input)).rejects.toThrow("REDIRECT:/dashboard");
+    await expect(addExpectedContributorAction(input)).rejects.toThrow("REDIRECT:/dashboard?contributors_saved=1");
     expect(mocks.addExpectedContributor).toHaveBeenCalledWith("user-1", "repository-1", { username: "octocat" });
   });
 
   test("suggested user metadata from a tampered form cannot modify global identity", async () => {
     const input = form("/dashboard");
     input.append("selectedContributor", JSON.stringify({ username: "alice", githubUserId: "42", avatarUrl: "https://example.invalid/tracker", name: "Poisoned" }));
-    await expect(confirmExpectedContributorsAction(input)).rejects.toThrow("REDIRECT:/dashboard");
+    await expect(confirmExpectedContributorsAction(input)).rejects.toThrow("REDIRECT:/dashboard?contributors_saved=1");
     expect(mocks.addExpectedContributors).toHaveBeenCalledWith("user-1", "repository-1", [{ username: "alice" }]);
   });
 

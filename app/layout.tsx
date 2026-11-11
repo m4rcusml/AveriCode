@@ -53,7 +53,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
-      <body className={`${GeistSans.variable} ${GeistMono.variable}`}>{children}</body>
+      <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
+        <div id="avericode-sync-notices" className="toast-stack" role="region" aria-label="Avisos de sincronização" />
+        {children}
+      </body>
     </html>
   );
 }

@@ -42,16 +42,18 @@ describe("contributor API validation", () => {
     }
   );
 
-  test("reports a saved contributor even when synchronization fails", async () => {
-    mocks.syncRepositoryActivity.mockRejectedValue(new Error("Unavailable"));
+  test("returns the saved configuration without waiting for GitHub activity", async () => {
+    mocks.syncRepositoryActivity.mockImplementation(() => new Promise(() => {}));
     const response = await POST(request("POST", '{"username":"octocat"}'), postContext);
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({
       repositoryContributor: {
         id: "rc-1", repositoryId: "repo-1", isExpected: true, isIgnored: false, contributor: { username: "octocat" }
       },
-      syncError: "Contributor saved. Run sync again to update activity."
+      saved: true,
+      activityPending: true
     });
+    expect(mocks.syncRepositoryActivity).not.toHaveBeenCalled();
   });
 
   test("does not serialize a global contributor's private metadata from another workspace", async () => {

@@ -22,6 +22,7 @@ Multiple repositories and GitHub accounts inside an isolated workspace. GitHub O
 
 - Next.js App Router, TypeScript, React, Prisma, PostgreSQL and Auth.js/NextAuth.
 - Expected contributors are explicitly configured for each repository. Zero commits in the recorded seven-day window means no recorded commit activity, not low productivity.
+- Automatic contributor selection uses people with commit history reported by GitHub, rather than everyone with repository access. Other expected people are added manually; manual choices survive synchronization.
 - Monitor the default branch and configured extra branches. Scheduled and manual sync share one implementation.
 - Workspace roles OWNER, ADMIN and MEMBER gate mutations. Adding repositories is an explicit selection and approval flow.
 - Dashboard rendering reads saved data only. Latest project updates must be persisted during sync.

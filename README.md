@@ -2,7 +2,7 @@
 
 AveriCode gives engineering leadership a saved view of its GitHub project portfolio: recent project changes, expected contributors, branch coverage, and integration health. Commit activity is evidence for a conversation, not a measure of productivity or completed deliveries.
 
-It uses GitHub OAuth for user login and a GitHub App for persistent repository access, scheduled syncs, manual syncs, branch monitoring, collaborator suggestions, and installation webhooks.
+It uses GitHub OAuth for user login and a GitHub App for persistent repository access, scheduled syncs, manual syncs, branch monitoring, commit author suggestions, and installation webhooks.
 
 ## Stack
 
@@ -192,7 +192,11 @@ Inactive means:
 An expected repository contributor had zero commits in the last 7 days.
 ```
 
-Expected contributors are configured explicitly. New repositories start with GitHub collaborators and contributors selected automatically; users can remove people who should not be expected.
+Expected contributors are configured explicitly. Automatic selection uses GitHub's historical contributors with commits, including authors who have no activity in the current seven-day window. Repository access alone does not make someone an expected contributor. Users can manually add other GitHub logins, ignore people or remove them from the expected list; synchronization preserves those choices.
+
+Contributor links record their origin (`GITHUB` or `MANUAL`). Existing links start as `LEGACY` because earlier versions did not distinguish automatic imports from manual additions. After a successful historical contributor lookup, access-only legacy imports stop counting while their records and history remain available. A prior manual addition that already had a GitHub ID but no commits cannot be distinguished from those old imports and may need to be added manually again. Failed lookups preserve the saved list.
+
+Saving contributor configuration only writes configuration; it does not wait for GitHub synchronization. GitHub author/branch suggestions load on request. Sync controls report their own completion or error and refresh saved data independently; a workspace-scoped, database-only status endpoint updates in-progress jobs without a page reload. Manual sync has a bounded execution budget, with partial batch outcomes reported explicitly.
 
 Manual contributor configuration accepts a GitHub login only. It does not trust submitted profile metadata or expose private email addresses shared by the global contributor identity table. Commit attribution requires GitHub's verified `author.id`; anonymous commit email text cannot impersonate a configured GitHub account.
 
@@ -228,6 +232,8 @@ npm run prisma:studio
 ```
 
 `npm run test:e2e` builds the app, starts `next start` on `http://127.0.0.1:3100`, and runs Playwright tests. Set `E2E_BASE_URL` to test an already running AveriCode server. Authenticated tests require `E2E_AUTH_STATE`; member permission tests also use `E2E_MEMBER_AUTH_STATE`.
+
+Set `E2E_QA_DATABASE_URL` to the local seeded PostgreSQL database to include operation-completion regressions: saved flags, fast manual additions, completion without F5, visible errors and expired-job recovery. These cases reject remote databases and restore their fixture changes.
 
 For disposable **local PostgreSQL only**, `npm run seed:qa` creates a clearly labeled fictional portfolio and real expiring OWNER, ADMIN and MEMBER sessions under ignored `.playwright/`. It refuses remote/production databases. Supply `DATABASE_URL` explicitly when running the seed. It never creates a production authentication bypass.
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { aggregatePeople, snapshotIsFresh, syncState } from "@/lib/dashboard/summary";
+import { activityDistribution, aggregatePeople, commitCategory, snapshotIsFresh, syncDistribution, syncState } from "@/lib/dashboard/summary";
 import type { DashboardContributorActivityRow } from "@/lib/dashboard/queries";
 
 const now = new Date("2026-11-11T12:00:00Z");
@@ -30,5 +30,26 @@ describe("leadership portfolio evidence", () => {
     expect(syncState(yesterday, "SUCCESS", now, now)).toBe("SUSPENDED");
     expect(syncState(null, undefined, null, now)).toBe("NEVER");
     expect(syncState(yesterday, "RUNNING", null, now)).toBe("RUNNING");
+    expect(syncState(yesterday, "RUNNING", null, now, new Date(now.getTime() - 31 * 60 * 1000))).toBe("FAILED");
+  });
+  test("visual participation includes every expected person and keeps unknown separate from absence", () => {
+    const people = [
+      ...Array.from({ length: 18 }, (_, index) => row(`active-${index}`, "ACTIVE")),
+      row("no-commit", "INACTIVE"), row("missing-capture", "UNKNOWN"), row("bot", "ACTIVE", true)
+    ];
+    expect(activityDistribution(people)).toEqual({ active: 18, inactive: 1, unknown: 1, total: 20 });
+    expect(activityDistribution([])).toEqual({ active: 0, inactive: 0, unknown: 0, total: 0 });
+  });
+  test("the portfolio graphic distinguishes integration failures from missing or old evidence", () => {
+    expect(syncDistribution([
+      { syncState: "CURRENT" }, { syncState: "CURRENT" }, { syncState: "FAILED" }, { syncState: "SUSPENDED" },
+      { syncState: "NEVER" }, { syncState: "STALE" }, { syncState: "NEEDS_REVIEW" }
+    ])).toEqual({ current: 2, failed: 2, waiting: 3, total: 7 });
+  });
+  test("feed categories reflect only an explicit conventional prefix", () => {
+    expect(commitCategory("feat(checkout)!: revisa o fluxo de cobrança")).toBe("feat");
+    expect(commitCategory("FIX: corrige o retry")).toBe("fix");
+    expect(commitCategory("Melhora o checkout")).toBeNull();
+    expect(commitCategory("release: versão nova")).toBeNull();
   });
 });

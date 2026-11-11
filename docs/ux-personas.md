@@ -31,10 +31,14 @@ Necessidades: sincronização por projeto em um clique, expandir detalhes na pr�
 
 - Navegação principal: portfólio, atualizações, pessoas e configurações.
 - Portfólio inicial mostra todas as contas do workspace. Filtros por conta, projeto/pessoa e dados que precisam de revisão.
-- Visão principal de projetos com situação do sync, participação na janela salva e última mudança persistida. Expandir revela pessoas, cobertura de branches e ações de configuração.
+- Visão principal de projetos com situação do sync, participação na janela salva e última mudança persistida. Barras mostram a proporção de pessoas com commits, sem commits e sem dado atual; avatares reais ou iniciais e `+N` apresentam as identidades sem ocultar o restante. Expandir revela pessoas, cobertura de branches e ações de configuração.
 - Atualizações recentes ficam ao lado dos projetos em telas largas e abaixo em telas estreitas. Cada item identifica projeto, mensagem, autor, branch, hash e data.
+- Barras com três estados mostram participação, preservando dados desconhecidos. Avatares e iniciais identificam pessoas; a distribuição visual das sincronizações permite filtrar projetos pela legenda. Contagens de commits são agregadas no banco, independentemente do limite de itens do feed.
 - Visão de pessoas agrega identidades por `contributorId`, sem duplicar a pessoa por repositório. Com atividade em qualquer projeto do escopo significa com commits; ausência em um projeto não a torna ausente do conjunto. Uma janela desconhecida impede afirmar ausência no conjunto.
 - Configurações mantêm membros, solicitações de projetos e frequência de sincronização. O seletor conecta somente os repositórios escolhidos.
+- A distribuição de sincronização no resumo filtra projetos com dados atuais, falhas/acesso ou dados a atualizar. Não há tendência ou comparação inventada.
+- A contagem de commits por projeto consulta todos os registros persistidos da janela móvel de sete dias; ela não é derivada do limite de itens do feed. O feed usa prefixos apenas quando declarados na própria mensagem e exibe autoria e branch.
+- A lista automática de pessoas vem dos autores de commits reconhecidos pelo GitHub. Ter permissão de acesso não inclui alguém automaticamente. A inclusão manual continua disponível e a origem aparece na configuração.
 
 ## Orçamento de cliques
 

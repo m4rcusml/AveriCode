@@ -21,6 +21,7 @@ export type DashboardRepository = {
   contributorRows: DashboardContributorActivityRow[]; branches: string[]; updates: DashboardUpdate[];
   syncState: PortfolioSyncState; latestSyncStatus: SyncRunStatus | null; syncError: string | null;
   periodStart: Date | null; periodEnd: Date | null; suspendedAt: Date | null; isActive: boolean; configurationError: string | null;
+  recordedCommitCount: number;
 };
 export type DashboardInstallation = {
   id: string; accountLogin: string; accountType: GitHubAccountType; installationId: string;
@@ -48,7 +49,7 @@ type Snapshot = { repositoryId: string; contributorId: string; commitCount: numb
 export async function getDashboardData(userId: string, searchParams?: DashboardSearchParams): Promise<DashboardData> {
   const workspace = await getSelectedWorkspaceForUser(userId);
   const now = new Date();
-  const [rawInstallations, membership, pendingRequestCount, snapshots] = await Promise.all([
+  const [rawInstallations, membership, pendingRequestCount, commitCounts, snapshots] = await Promise.all([
     prisma.gitHubInstallation.findMany({
       where: { workspaceId: workspace.id },
       include: { repositories: { include: {
@@ -61,6 +62,11 @@ export async function getDashboardData(userId: string, searchParams?: DashboardS
     }),
     prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: workspace.id, userId } }, select: { role: true } }),
     prisma.repositoryAccessRequest.count({ where: { workspaceId: workspace.id, items: { some: { status: "PENDING" } } } }),
+    prisma.repositoryUpdate.groupBy({
+      by: ["repositoryId"],
+      where: { repository: { workspaceId: workspace.id }, committedAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), lte: now } },
+      _count: { _all: true }
+    }),
     // Return the latest saved window per person/project without loading its history into React.
     prisma.$queryRaw<Snapshot[]>(Prisma.sql`
       SELECT DISTINCT ON (s."repositoryId", s."contributorId")
@@ -72,18 +78,21 @@ export async function getDashboardData(userId: string, searchParams?: DashboardS
     `)
   ]);
   const snapshotByPair = new Map(snapshots.map((s) => [`${s.repositoryId}:${s.contributorId}`, s]));
+  const commitCountByRepository = new Map(commitCounts.map((count) => [count.repositoryId, count._count._all]));
   const installations: DashboardInstallation[] = rawInstallations.map((installation) => ({
     id: installation.id, accountLogin: installation.accountLogin, accountType: installation.accountType,
     installationId: installation.installationId, repositorySelection: installation.repositorySelection,
     repositories: installation.repositories.map((repository) => {
       const latestRun = repository.syncRuns[0];
-      const state = repository.configurationError && latestRun?.status !== "FAILED" && !installation.suspendedAt ? "NEEDS_REVIEW" as const : syncState(repository.lastSyncedAt, latestRun?.status, installation.suspendedAt, now);
+      const baseState = syncState(repository.lastSyncedAt, latestRun?.status, installation.suspendedAt, now, latestRun?.startedAt);
+      const state = repository.configurationError && ["CURRENT", "STALE", "NEVER"].includes(baseState) ? "NEEDS_REVIEW" as const : baseState;
       const period = repository.contributors.map((rc) => snapshotByPair.get(`${repository.id}:${rc.contributorId}`)).find(Boolean);
       return {
         id: repository.id, fullName: repository.fullName, defaultBranch: repository.defaultBranch,
         private: repository.private, lastSyncedAt: repository.lastSyncedAt, isActive: repository.isActive, configurationError: repository.configurationError,
-        suspendedAt: installation.suspendedAt, syncState: state, latestSyncStatus: latestRun?.status ?? null,
-        syncError: latestRun?.status === "FAILED" ? latestRun.error : null,
+        recordedCommitCount: commitCountByRepository.get(repository.id) ?? 0,
+        suspendedAt: installation.suspendedAt, syncState: state, latestSyncStatus: latestRun?.status === "RUNNING" && baseState === "FAILED" ? "FAILED" : latestRun?.status ?? null,
+        syncError: baseState === "FAILED" && latestRun?.status !== "FAILED" ? "A tentativa anterior não foi concluída. Você pode iniciar uma nova sincronização." : latestRun?.status === "FAILED" ? latestRun.error : null,
         periodStart: period?.periodStart ?? null, periodEnd: period?.periodEnd ?? null,
         branches: [...new Set([repository.defaultBranch, ...repository.branches.map((b) => b.name)].filter((name): name is string => Boolean(name)))],
         updates: repository.updates.map((update) => ({ ...update, repositoryName: repository.fullName })),
@@ -102,15 +111,26 @@ export async function getDashboardData(userId: string, searchParams?: DashboardS
   const requestedId = firstSearchParamValue(searchParams?.installationId);
   const selectedInstallation = installations.find((i) => i.id === requestedId) ?? null;
   const query = (firstSearchParamValue(searchParams?.q) ?? "").trim().slice(0, 200);
-  const focus = firstSearchParamValue(searchParams?.focus) === "attention" ? "attention" : "all";
+  const requestedFocus = firstSearchParamValue(searchParams?.focus);
+  const focus = requestedFocus && ["attention", "current", "failed", "waiting"].includes(requestedFocus) ? requestedFocus : "all";
   const view = firstSearchParamValue(searchParams?.view) === "people" ? "people" : "projects";
   const scopedRepositories = selectedInstallation ? [...selectedInstallation.repositories].sort((a,b) => priority[a.syncState]-priority[b.syncState] || a.fullName.localeCompare(b.fullName,"pt-BR")) : allRepositories;
-  const repositories = scopedRepositories.filter((r) => (!query || `${r.fullName} ${r.contributorRows.map((c) => `${c.name} ${c.username ?? ""}`).join(" ")}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR"))) && (focus !== "attention" || r.syncState !== "CURRENT"));
+  const repositories = scopedRepositories.filter((r) => {
+    const matchesQuery = !query || `${r.fullName} ${r.contributorRows.map((c) => `${c.name} ${c.username ?? ""}`).join(" ")}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR"));
+    const failed = r.syncState === "FAILED" || r.syncState === "SUSPENDED";
+    const matchesFocus = focus === "all" || (focus === "attention" && r.syncState !== "CURRENT") || (focus === "current" && r.syncState === "CURRENT") || (focus === "failed" && failed) || (focus === "waiting" && r.syncState !== "CURRENT" && !failed);
+    return matchesQuery && matchesFocus;
+  });
   const people = aggregatePeople(scopedRepositories);
   const latestSync = allRepositories.map((r) => r.lastSyncedAt).filter((d): d is Date => Boolean(d)).sort((a,b) => b.getTime()-a.getTime())[0] ?? null;
+  const returnParams = new URLSearchParams();
+  if (selectedInstallation) returnParams.set("installationId", selectedInstallation.id);
+  if (query) returnParams.set("q", query);
+  if (focus !== "all") returnParams.set("focus", focus);
+  if (view !== "projects") returnParams.set("view", view);
   return {
     installUrl: getGitHubAppInstallUrl(workspace.id), installations, selectedInstallation, tabInstallations: installations,
-    selectedDashboardHref: dashboardHref(selectedInstallation?.id), workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
+    selectedDashboardHref: returnParams.size ? `/dashboard?${returnParams}` : "/dashboard", workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
     canManageWorkspace: membership?.role === "OWNER" || membership?.role === "ADMIN", pendingRequestCount,
     repositories, allRepositories, updates: repositories.flatMap((r) => r.updates).sort((a,b) => b.committedAt.getTime()-a.committedAt.getTime()).slice(0, 20),
     people, query, focus, view, syncSchedule: workspace.syncSchedule,

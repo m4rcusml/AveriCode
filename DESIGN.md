@@ -61,7 +61,7 @@ Um ambiente de trabalho para ler o conjunto e investigar as partes. A superfíci
 - Portfólio antes de detalhe individual.
 - Cor como orientação e estado.
 - Conteúdo real em listas alinhadas, sem decoração que simula dados.
-- Participação mostrada por uma régua de pontos e rótulos explícitos.
+- Participação mostrada por barras proporcionais, identidades e contagens explícitas.
 
 ## Colors
 
@@ -85,7 +85,7 @@ Separação por tons e filetes. Sombra suave apenas nos elementos transitórios,
 
 ## Shapes
 
-Controles com raio de 6px; painéis 7px; chips 4px. Presença circular pequena com preenchimento, contorno ou tracejado, sempre acompanhada por legenda e texto acessível.
+Controles com raio de 6px; painéis 7px; chips 4px. Barras de distribuição com raio de 3px; avatares circulares. Dados desconhecidos usam hachura neutra e legenda, sem assumir ausência de atividade.
 
 ## Components
 
@@ -93,6 +93,11 @@ Controles com raio de 6px; painéis 7px; chips 4px. Presença circular pequena c
 - Linhas expansíveis usam `details` e `summary` nativos. Não exigem modal ou estado client para consultar pessoas.
 - Filtros são formulário GET, preservando navegação e compartilhamento da URL.
 - Indicadores de sync distinguem dados atuais, antigos, falha, em andamento, nunca sincronizado, suspensão e equipe incompleta.
+- O resumo do portfólio representa projetos com dados atuais, falhas/acesso e dados a atualizar. Cada item da legenda filtra a lista em um clique.
+- Participação usa três segmentos proporcionais: com commits, sem commits e sem dado atual. A largura considera todas as pessoas esperadas, inclusive listas maiores que 16. Pessoas ignoradas ficam fora do denominador.
+- Grupos de avatares usam imagens reais quando disponíveis e iniciais do usuário como fallback. A indicação `+N` e o nome acessível resumem as identidades fora do grupo visível.
+- A contagem de commits é agregada dos registros persistidos dos últimos sete dias, independentemente do limite do feed. Sem captura atual, a linha informa que os dados precisam de atualização.
+- Prefixos de commits no feed aparecem apenas quando declarados na própria mensagem. Não inferir entrega ou impacto a partir desses prefixos.
 - Ações de pessoas ficam no detalhe; permissões determinam sua disponibilidade.
 - Estados vazios ensinam o próximo passo sem simular projetos ou resultados.
 

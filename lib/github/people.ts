@@ -5,6 +5,7 @@ type GitHubUserResponse = {
   id: number;
   login: string;
   avatar_url: string | null;
+  contributions: number;
 };
 
 export type GitHubPersonSuggestion = {
@@ -44,7 +45,9 @@ async function fetchPaginatedUsers(token: string, path: string, signal?: AbortSi
 
     // GitHub returns 204 for contributors of an empty repository.
     if (!pageUsers) break;
-    users.push(...pageUsers.map(toPerson));
+    users.push(...pageUsers
+      .filter((user) => Number.isSafeInteger(user.id) && user.id > 0 && user.login && user.contributions > 0)
+      .map(toPerson));
 
     if (pageUsers.length < 100) {
       break;
@@ -52,19 +55,6 @@ async function fetchPaginatedUsers(token: string, path: string, signal?: AbortSi
   }
 
   return users;
-}
-
-async function fetchRepositoryCollaborators(input: {
-  token: string;
-  owner: string;
-  name: string;
-  signal?: AbortSignal;
-}) {
-  return fetchPaginatedUsers(
-    input.token,
-    `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.name)}/collaborators?affiliation=all`,
-    input.signal
-  );
 }
 
 async function fetchRepositoryContributors(input: {
@@ -121,21 +111,7 @@ export async function fetchRepositoryPeopleSuggestions(input: {
   signal?: AbortSignal;
 }): Promise<RepositoryPeopleSuggestions> {
   const errors: string[] = [];
-  let repositoryCollaborators: GitHubPersonSuggestion[] = [];
   let repositoryContributors: GitHubPersonSuggestion[] = [];
-
-  try {
-    repositoryCollaborators = uniquePeople(
-      await fetchRepositoryCollaborators({
-        token: input.token,
-        owner: input.owner,
-        name: input.name,
-        signal: input.signal
-      })
-    );
-  } catch (error) {
-    errors.push(readableGitHubError(error, "Repository collaborators"));
-  }
 
   try {
     repositoryContributors = uniquePeople(
@@ -150,18 +126,10 @@ export async function fetchRepositoryPeopleSuggestions(input: {
     errors.push(readableGitHubError(error, "Repository contributors"));
   }
 
-  const contributorKeys = new Set(repositoryContributors.map(suggestionKey));
-  const suggestedContributors = repositoryCollaborators.filter((collaborator) =>
-    contributorKeys.has(suggestionKey(collaborator))
-  );
-  const accessWithoutContributions = repositoryCollaborators.filter(
-    (collaborator) => !contributorKeys.has(suggestionKey(collaborator))
-  );
-
   return {
-    suggestedContributors,
-    accessWithoutContributions,
-    allPeople: uniquePeople([...repositoryCollaborators, ...repositoryContributors]),
+    suggestedContributors: repositoryContributors,
+    accessWithoutContributions: [],
+    allPeople: repositoryContributors,
     errors
   };
 }

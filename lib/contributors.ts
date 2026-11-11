@@ -202,13 +202,15 @@ export async function addExpectedContributorsToRepository(
         },
         update: options.preserveExisting ? {} : {
           isExpected: true,
-          isIgnored: false
+          isIgnored: false,
+          source: "GITHUB"
         },
         create: {
           repositoryId,
           contributorId: contributor.id,
           isExpected: true,
-          isIgnored: false
+          isIgnored: false,
+          source: "GITHUB"
         },
         include: {
           contributor: true
@@ -218,4 +220,61 @@ export async function addExpectedContributorsToRepository(
   }
 
   return repositoryContributors;
+}
+
+export async function reconcileRepositoryContributors(
+  repositoryId: string,
+  inputs: ContributorIdentityInput[],
+  options: { signal?: AbortSignal } = {}
+) {
+  const contributorIds = new Set<string>();
+  for (const input of inputs) {
+    options.signal?.throwIfAborted();
+    if (!input.githubUserId) continue;
+    contributorIds.add((await findOrCreateContributor(input)).id);
+  }
+  options.signal?.throwIfAborted();
+  return prisma.$transaction(async (tx) => {
+    // The GitHub list can lag or omit authors who only committed to monitored extra branches.
+    const savedAuthors = await tx.commitActivitySnapshot.findMany({
+      where: {
+        repositoryId, commitCount: { gt: 0 },
+        contributor: { githubUserId: { not: null }, repositories: { some: { repositoryId } } }
+      },
+      select: { contributorId: true }, distinct: ["contributorId"]
+    });
+    const ids = [...new Set([...contributorIds, ...savedAuthors.map((snapshot) => snapshot.contributorId)])];
+    // Legacy imports lack provenance: preserve explicit exclusions and username-only additions.
+    await tx.repositoryContributor.updateMany({
+      where: {
+        repositoryId, source: "LEGACY",
+        OR: [{ isExpected: false }, { isIgnored: true }, { contributor: { githubUserId: null } }]
+      },
+      data: { source: "MANUAL" }
+    });
+    // A legacy GitHub identity without historical commits was an access-only import.
+    // Old manual additions with a GitHub ID are indistinguishable; retain the row for manual re-selection.
+    await tx.repositoryContributor.updateMany({
+      where: { repositoryId, source: "LEGACY", contributorId: { notIn: ids } },
+      data: { source: "GITHUB", isExpected: false }
+    });
+    await tx.repositoryContributor.updateMany({
+      where: { repositoryId, source: "LEGACY", contributorId: { in: ids } },
+      data: { source: "GITHUB" }
+    });
+    if (ids.length > 0) {
+      await tx.repositoryContributor.createMany({
+        data: ids.map((contributorId) => ({ repositoryId, contributorId, source: "GITHUB" as const, isExpected: true })),
+        skipDuplicates: true
+      });
+      await tx.repositoryContributor.updateMany({
+        where: { repositoryId, source: "GITHUB", contributorId: { in: ids }, isIgnored: false },
+        data: { isExpected: true }
+      });
+    }
+    return tx.repositoryContributor.findMany({
+      where: { repositoryId, isExpected: true, isIgnored: false },
+      include: { contributor: true }
+    });
+  });
 }

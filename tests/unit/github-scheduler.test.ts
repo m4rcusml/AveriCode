@@ -7,14 +7,16 @@ const mocks = vi.hoisted(() => ({
     workspace: { findMany: vi.fn(), updateMany: vi.fn() },
     repository: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     syncRun: { create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
-    repositoryUpdate: { deleteMany: vi.fn() }
+    repositoryUpdate: { deleteMany: vi.fn() },
+    repositoryContributor: { findMany: vi.fn().mockResolvedValue([]) }
   }
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 vi.mock("@/lib/github/app-auth", () => ({ getInstallationAccessToken: vi.fn().mockResolvedValue("token") }));
 vi.mock("@/lib/github/commits", () => ({ fetchRepositoryCommits: mocks.fetchRepositoryCommits }));
 vi.mock("@/lib/github/installations", () => ({ configureNewRepository: vi.fn() }));
-vi.mock("@/lib/contributors", () => ({ findOrCreateContributor: vi.fn() }));
+vi.mock("@/lib/github/people", () => ({ fetchRepositoryPeopleSuggestions: vi.fn().mockResolvedValue({ allPeople: [], errors: [] }) }));
+vi.mock("@/lib/contributors", () => ({ findOrCreateContributor: vi.fn(), reconcileRepositoryContributors: vi.fn().mockResolvedValue([]) }));
 import { syncScheduledWorkspaces } from "@/lib/github/sync";
 
 type Workspace = {

@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   fetchRepositoryCommits: vi.fn(),
   getInstallationAccessToken: vi.fn(),
   configureNewRepository: vi.fn(),
+  fetchRepositoryPeopleSuggestions: vi.fn(),
+  reconcileRepositoryContributors: vi.fn(),
   prisma: {
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
@@ -23,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     },
     repositoryContributor: {
       upsert: vi.fn(),
+      updateMany: vi.fn(),
       findMany: vi.fn()
     },
     repositoryBranch: { findMany: vi.fn() },
@@ -47,6 +50,11 @@ vi.mock("@/lib/github/commits", () => ({
   fetchRepositoryCommits: mocks.fetchRepositoryCommits
 }));
 vi.mock("@/lib/github/installations", () => ({ configureNewRepository: mocks.configureNewRepository }));
+vi.mock("@/lib/github/people", () => ({ fetchRepositoryPeopleSuggestions: mocks.fetchRepositoryPeopleSuggestions }));
+vi.mock("@/lib/contributors", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/contributors")>(),
+  reconcileRepositoryContributors: mocks.reconcileRepositoryContributors
+}));
 
 import { syncRepositoryActivity, syncScheduledWorkspaces } from "@/lib/github/sync";
 
@@ -63,6 +71,10 @@ describe("syncRepositoryActivity", () => {
     mocks.prisma.commitActivitySnapshot.createMany.mockResolvedValue({ count: 1 });
     mocks.getInstallationAccessToken.mockResolvedValue("installation-token");
     mocks.configureNewRepository.mockResolvedValue({ warnings: [] });
+    mocks.fetchRepositoryPeopleSuggestions.mockResolvedValue({ allPeople: [], errors: [] });
+    mocks.prisma.repositoryContributor.updateMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.repositoryContributor.findMany.mockImplementation(async () => (await mocks.prisma.repository.findUnique()).contributors);
+    mocks.reconcileRepositoryContributors.mockImplementation(async () => mocks.prisma.repositoryContributor.findMany());
     mocks.prisma.repository.findUnique.mockResolvedValue({
       id: "repository-1",
       workspaceId: "workspace-1",
@@ -265,7 +277,7 @@ describe("syncRepositoryActivity", () => {
     });
   });
 
-  test("does not mistake authors discovered during failed setup for manual roster exclusions on retry", async () => {
+  test("enrolls real commit authors during a failed historical lookup without turning them into manual exclusions", async () => {
     const repository = await mocks.prisma.repository.findUnique();
     const contributor = { id: "contributor-1", githubUserId: "10", username: "octocat", email: null };
     const roster = new Map<string, { contributorId: string; isExpected: boolean; isIgnored: boolean; contributor: typeof contributor }>();
@@ -298,8 +310,10 @@ describe("syncRepositoryActivity", () => {
     }]);
 
     await syncRepositoryActivity({ repositoryId: "repository-1", trigger: "CRON" });
-    expect(roster.size).toBe(0);
-    expect(mocks.prisma.repositoryContributor.upsert).not.toHaveBeenCalled();
+    expect(roster.get(contributor.id)).toMatchObject({ isExpected: true });
+    expect(mocks.prisma.commitActivitySnapshot.createMany).toHaveBeenLastCalledWith({
+      data: [expect.objectContaining({ status: "UNKNOWN", commitCount: 1 })]
+    });
     expect(mocks.prisma.repositoryUpdate.createMany).toHaveBeenCalled();
 
     await syncRepositoryActivity({ repositoryId: "repository-1", trigger: "CRON" });

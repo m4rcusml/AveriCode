@@ -27,7 +27,8 @@ describe("untrusted contributor configuration", () => {
     expect(mocks.prisma.contributor.update).not.toHaveBeenCalled();
     expect(mocks.prisma.contributor.upsert).not.toHaveBeenCalled();
     expect(mocks.prisma.repositoryContributor.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: { repositoryId: "my-repository", contributorId: "global-alice", isExpected: true, isIgnored: false },
+      create: { repositoryId: "my-repository", contributorId: "global-alice", isExpected: true, isIgnored: false, source: "MANUAL" },
+      update: { isExpected: true, isIgnored: false, source: "MANUAL" },
       select: expect.objectContaining({ contributor: { select: { username: true } } })
     }));
   });

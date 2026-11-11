@@ -19,6 +19,7 @@ type RepositoryBranchesPageProps = {
   searchParams?: Promise<{
     branch_error?: string | string[];
     branch_success?: string | string[];
+    load?: string | string[];
   }>;
 };
 
@@ -211,6 +212,7 @@ export default async function RepositoryBranchesPage({
 
   const membership = await assertWorkspaceAccess(session.user.id, repository.workspaceId);
   const canManage = membership.role === "OWNER" || membership.role === "ADMIN";
+  const showAvailableBranches = firstValue(resolvedSearchParams?.load) === "1";
 
   const defaultBranch = normalizeBranchName(repository.defaultBranch);
   const monitoredBranchNames = [
@@ -292,7 +294,7 @@ export default async function RepositoryBranchesPage({
         </div>
       </section>
 
-      {canManage ? <Suspense fallback={<AvailableBranchesFallback />}>
+      {canManage ? showAvailableBranches ? <Suspense fallback={<AvailableBranchesFallback />}>
         <AvailableBranchesForm
           monitoredBranchNames={monitoredBranchNames}
           repository={{
@@ -302,7 +304,7 @@ export default async function RepositoryBranchesPage({
             owner: repository.owner
           }}
         />
-      </Suspense> : <p className="notice">Somente responsáveis e administradores podem configurar branches.</p>}
+      </Suspense> : <section className="section"><h2 className="section-title">Branches disponíveis</h2><p className="section-copy">Consulte as branches do GitHub quando quiser ampliar o monitoramento deste projeto.</p><Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/branches?load=1`}>Buscar branches no GitHub</Link></section> : <p className="notice">Somente responsáveis e administradores podem configurar branches.</p>}
     </main>
   );
 }

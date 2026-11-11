@@ -151,7 +151,7 @@ The setup callback requires the returned state to exactly match the pending cook
 7. OWNER and ADMIN selections are connected directly; MEMBER selections create a pending request.
 8. The workspace OWNER can approve any subset of repositories in a member request.
 9. Approved repositories are linked to the selected Workspace and monitored automatically.
-10. Backend adds GitHub collaborators/contributors as expected contributors.
+10. Backend adds GitHub contributors with commit history as expected contributors. Repository access alone does not qualify.
 11. Backend adds up to five non-default branches changed during the previous two weeks.
 12. User can remove expected contributors or add more branches.
 13. Dashboard becomes available.
@@ -170,6 +170,8 @@ An expected repository contributor had zero commits in the last 7 days.
 Therefore each monitored repository needs an explicit list of expected contributors.
 
 Expected contributors are represented through repository contributor configuration, not only through commit authors discovered from GitHub.
+
+Automatic configuration uses GitHub's historical contributors, including people with no commits in the current seven-day window. Users can add other people manually. Synchronization preserves manual additions, ignored contributors, and explicit removals when refreshing the automatic list.
 
 ## Branch Monitoring Rule
 
@@ -316,6 +318,7 @@ RepositoryContributor
 - contributorId
 - isExpected
 - isIgnored
+- source: GITHUB | MANUAL | LEGACY
 
 CommitActivitySnapshot
 - id

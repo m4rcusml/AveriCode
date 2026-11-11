@@ -46,6 +46,40 @@ test.describe("authenticated app smoke", () => {
     await expect(unknownProject.locator(".presence-ruler")).toHaveAttribute("aria-label", /Sem dado atual/);
     await expect(unknownProject.locator(".presence-ruler")).not.toHaveAttribute("aria-label", /janela válida/);
   });
+
+  test("filters failed project data directly from its visual legend", async ({ page }) => {
+    await page.goto("/dashboard");
+    const failureFilter = page.locator(".sync-overview-legend a").filter({ hasText: /falha/ });
+    test.skip(!(await failureFilter.count()), "A connected portfolio is required.");
+    await failureFilter.click();
+    await expect(page).toHaveURL(/focus=failed/);
+    await expect(page.getByRole("combobox", { name: "Situação dos projetos" })).toHaveValue("failed");
+    for (const status of await page.locator(".project-state .status-badge").all()) {
+      await expect(status).toHaveText(/Falha no sync|Acesso suspenso/);
+    }
+  });
+
+  test("explains when filters hide all saved updates", async ({ page }) => {
+    await page.goto("/dashboard?q=qa-no-matching-project-87219");
+    const feed = page.locator(".updates-panel");
+    await expect(feed.getByRole("heading", { name: "Nenhuma atualização corresponde aos filtros" })).toBeVisible();
+    await expect(feed.getByText("O contexto começa no próximo sync")).toHaveCount(0);
+    await feed.getByRole("link", { name: "Limpar filtros" }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.locator(".portfolio-project").first()).toBeVisible();
+  });
+
+  test("loads GitHub suggestions only when explicitly requested", async ({ page }) => {
+    await page.goto("/dashboard");
+    const project = page.locator(".project-summary").first();
+    test.skip(!(await project.count()), "A connected project is required.");
+    await project.click();
+    await page.locator(".project-details[open]").first().getByRole("link", { name: "Configurar pessoas" }).click();
+    await expect(page.getByRole("link", { name: "Buscar autores no GitHub" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Acesso sem contribuições" })).toHaveCount(0);
+    await page.getByRole("link", { name: "Branches", exact: true }).click();
+    await expect(page.getByRole("link", { name: "Buscar branches no GitHub" })).toBeVisible();
+  });
 });
 
 test.describe("member portfolio permissions", () => {

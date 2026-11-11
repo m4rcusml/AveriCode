@@ -10,14 +10,14 @@ type PendingSubmitButtonProps = ComponentProps<"button"> & {
 export function PendingSubmitButton({
   children,
   disabled,
-  pendingLabel = "Working...",
+  pendingLabel = "Salvando…",
   type = "submit",
   ...props
 }: PendingSubmitButtonProps) {
   const { pending } = useFormStatus();
 
   return (
-    <button aria-disabled={disabled || pending} disabled={disabled || pending} type={type} {...props}>
+    <button {...props} aria-disabled={disabled || pending} aria-busy={pending} disabled={disabled || pending} type={type}>
       {pending ? pendingLabel : children}
     </button>
   );

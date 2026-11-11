@@ -1,34 +1,133 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-11T18:00:00Z",
+  "generatedAt": "2026-11-11T19:05:15.0813543Z",
   "title": "Design System: AveriCode",
   "extensions": {
     "colorMeta": {
-      "primary": { "role": "primary", "displayName": "Verde petróleo" },
-      "forest-shell": { "role": "primary", "displayName": "Floresta" },
-      "leaf-selection": { "role": "secondary", "displayName": "Folha" },
-      "mineral-ground": { "role": "neutral", "displayName": "Papel mineral" },
-      "amber": { "role": "warning", "displayName": "Âmbar de revisão" },
-      "failure": { "role": "error", "displayName": "Falha técnica" }
+      "primary": {
+        "role": "primary",
+        "displayName": "Verde petróleo"
+      },
+      "forest-shell": {
+        "role": "primary",
+        "displayName": "Floresta"
+      },
+      "leaf-selection": {
+        "role": "secondary",
+        "displayName": "Folha"
+      },
+      "mineral-ground": {
+        "role": "neutral",
+        "displayName": "Papel mineral"
+      },
+      "amber": {
+        "role": "warning",
+        "displayName": "Âmbar de revisão"
+      },
+      "failure": {
+        "role": "error",
+        "displayName": "Falha técnica"
+      }
     },
-    "shadows": [{ "name": "transient", "value": "0 12px 30px #182e2412", "purpose": "Seletor de workspace e notificações." }],
-    "motion": [{ "name": "state", "value": "150ms ease", "purpose": "Mudança de estado de controles e abertura do detalhe; respeita reduced-motion." }],
-    "breakpoints": [{ "name": "feed-stack", "value": "1250px" }, { "name": "horizontal-nav", "value": "900px" }, { "name": "mobile", "value": "600px" }]
+    "shadows": [
+      {
+        "name": "transient",
+        "value": "0 12px 30px #182e2412",
+        "purpose": "Seletor de workspace e notificações."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "150ms ease",
+        "purpose": "Mudança de estado de controles e abertura do detalhe; respeita reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "feed-stack",
+        "value": "1250px"
+      },
+      {
+        "name": "horizontal-nav",
+        "value": "900px"
+      },
+      {
+        "name": "mobile",
+        "value": "600px"
+      }
+    ]
   },
   "components": [
-    { "name": "Ação principal", "kind": "button", "refersTo": "button-primary", "description": "Sincronização global e conexão de projetos.", "html": "<button class=\"ds-primary\">Sincronizar tudo</button>", "css": ".ds-primary{font:550 12px sans-serif;padding:8px 13px;min-height:38px;border:1px solid var(--primary);border-radius:6px;background:var(--primary);color:var(--on-primary);cursor:pointer}.ds-primary:hover{background:var(--primary-strong)}.ds-primary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}" },
-    { "name": "Ação secundária", "kind": "button", "description": "Alternativa visível à ação principal.", "html": "<button class=\"ds-secondary\">Conectar projetos</button>", "css": ".ds-secondary{font:550 12px sans-serif;padding:8px 13px;min-height:38px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer}.ds-secondary:hover{background:var(--surface-muted);border-color:var(--muted)}.ds-secondary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}" },
-    { "name": "Busca", "kind": "input", "description": "Busca por projeto ou pessoa no portfólio.", "html": "<label class=\"ds-search\"><span>Buscar projeto ou pessoa</span><input placeholder=\"Buscar projeto ou pessoa\" type=\"search\"></label>", "css": ".ds-search{font:12px sans-serif;color:var(--muted)}.ds-search span{display:block;margin-bottom:6px}.ds-search input{font:12px sans-serif;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-input);color:var(--text);caret-color:var(--primary)}.ds-search input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}" },
-    { "name": "Navegação", "kind": "nav", "description": "Seleção folha sobre o shell floresta.", "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Visão do portfólio</a><a href=\"#\">Configurações</a></nav>", "css": ".ds-nav{display:grid;gap:5px;padding:14px;background:var(--shell);font:550 13px sans-serif}.ds-nav a{color:#d3e2d6;padding:11px 12px;text-decoration:none;border-radius:6px}.ds-nav a[aria-current]{color:#173e35;background:#c9e5aa}.ds-nav a:hover{outline:1px solid #ffffff40}.ds-nav a:focus-visible{outline:2px solid #c9e5aa;outline-offset:2px}" },
-    { "name": "Estado da captura", "kind": "chip", "description": "Texto e cor comunicam confiança dos dados.", "html": "<span class=\"ds-status\">Dados antigos</span>", "css": ".ds-status{display:inline-flex;padding:3px 6px;border-radius:4px;background:var(--warning-soft);color:var(--warning);font:500 11px sans-serif;line-height:1.4}" },
-    { "name": "Régua de presença", "kind": "custom", "description": "Sinal por pessoa esperada, sem volume ou ranking.", "html": "<div class=\"ds-presence\" role=\"img\" aria-label=\"2 de 4 pessoas com commits, uma sem commits e uma sem dado atual\"><i></i><i></i><i class=\"ds-empty\"></i><i class=\"ds-unknown\"></i><span>2 de 4 com commits</span></div>", "css": ".ds-presence{display:flex;align-items:center;gap:4px;font:11px sans-serif;color:var(--muted)}.ds-presence i{width:7px;height:7px;border:1px solid var(--primary);border-radius:50%;background:var(--primary)}.ds-presence .ds-empty{background:transparent;border-color:var(--warning)}.ds-presence .ds-unknown{background:transparent;border-style:dashed;border-color:var(--muted)}.ds-presence span{margin-left:8px}" }
+    {
+      "name": "Ação principal",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Sincronização global e conexão de projetos.",
+      "html": "<button class=\"ds-primary\">Sincronizar tudo</button>",
+      "css": ".ds-primary{font:550 12px sans-serif;padding:8px 13px;min-height:38px;border:1px solid var(--primary);border-radius:6px;background:var(--primary);color:var(--on-primary);cursor:pointer}.ds-primary:hover{background:var(--primary-strong)}.ds-primary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Ação secundária",
+      "kind": "button",
+      "description": "Alternativa visível à ação principal.",
+      "html": "<button class=\"ds-secondary\">Conectar projetos</button>",
+      "css": ".ds-secondary{font:550 12px sans-serif;padding:8px 13px;min-height:38px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer}.ds-secondary:hover{background:var(--surface-muted);border-color:var(--muted)}.ds-secondary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}"
+    },
+    {
+      "name": "Busca",
+      "kind": "input",
+      "description": "Busca por projeto ou pessoa no portfólio.",
+      "html": "<label class=\"ds-search\"><span>Buscar projeto ou pessoa</span><input placeholder=\"Buscar projeto ou pessoa\" type=\"search\"></label>",
+      "css": ".ds-search{font:12px sans-serif;color:var(--muted)}.ds-search span{display:block;margin-bottom:6px}.ds-search input{font:12px sans-serif;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-input);color:var(--text);caret-color:var(--primary)}.ds-search input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "Navegação",
+      "kind": "nav",
+      "description": "Seleção folha sobre o shell floresta.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Visão do portfólio</a><a href=\"#\">Configurações</a></nav>",
+      "css": ".ds-nav{display:grid;gap:5px;padding:14px;background:var(--shell);font:550 13px sans-serif}.ds-nav a{color:#d3e2d6;padding:11px 12px;text-decoration:none;border-radius:6px}.ds-nav a[aria-current]{color:#173e35;background:#c9e5aa}.ds-nav a:hover{outline:1px solid #ffffff40}.ds-nav a:focus-visible{outline:2px solid #c9e5aa;outline-offset:2px}"
+    },
+    {
+      "name": "Estado da captura",
+      "kind": "chip",
+      "description": "Texto e cor comunicam confiança dos dados.",
+      "html": "<span class=\"ds-status\">Dados antigos</span>",
+      "css": ".ds-status{display:inline-flex;padding:3px 6px;border-radius:4px;background:var(--warning-soft);color:var(--warning);font:500 11px sans-serif;line-height:1.4}"
+    },
+    {
+      "name": "Distribuição de participação",
+      "kind": "custom",
+      "description": "Todos os esperados em três estados proporcionais; desconhecido permanece distinto de zero.",
+      "html": "<div class=\"ds-distribution\" role=\"img\" aria-label=\"2 pessoas com commits, 1 sem commits e 1 sem dado atual\"><i class=\"ds-active\"></i><i class=\"ds-inactive\"></i><i class=\"ds-unknown\"></i></div><p class=\"ds-caption\">2 com commits · 1 sem commits · 1 sem dado atual</p>",
+      "css": ".ds-distribution{display:flex;height:9px;gap:1px;border:1px solid var(--border);border-radius:3px;overflow:hidden}.ds-distribution i{flex-basis:0}.ds-active{flex-grow:2;background:var(--primary)}.ds-inactive{flex-grow:1;background:var(--warning)}.ds-unknown{flex-grow:1;background:repeating-linear-gradient(135deg,var(--muted) 0,var(--muted) 1px,var(--surface) 1px,var(--surface) 5px)}.ds-caption{font:12px sans-serif;color:var(--muted)}"
+    }
   ],
   "narrative": {
     "northStar": "Briefing executivo",
     "overview": "Um ambiente de trabalho para ler o conjunto e investigar as partes. A superfície mineral clara é ancorada por uma navegação verde floresta. Tipografia precisa, filetes discretos e densidade controlada substituem a identidade anterior azul e magenta.",
-    "keyCharacteristics": ["Portfólio antes de detalhe individual.", "Cor como orientação e estado.", "Conteúdo real em listas alinhadas, sem decoração que simula dados.", "Participação mostrada por uma régua de pontos e rótulos explícitos."],
-    "rules": [{ "name": "The Evidence Rule", "body": "Cor nunca declara produtividade ou sucesso de entrega. O estado tem texto e ícone e corresponde à evidência salva.", "section": "colors" }],
-    "dos": ["Mostrar data, escopo e janela da evidência.", "Preservar atividade transversal entre projetos.", "Manter foco visível e semântica nativa."],
-    "donts": ["Não criar rankings de produtividade por commits.", "Não decorar a aplicação com gradientes ou gráficos sem dados.", "Não expor dados globais privados de Contributor em outro workspace."]
+    "keyCharacteristics": [
+      "Portfólio antes de detalhe individual.",
+      "Cor como orientação e estado.",
+      "Conteúdo real em listas alinhadas, sem decoração que simula dados.",
+      "Participação mostrada por barras proporcionais, identidades e contagens explícitas."
+    ],
+    "rules": [
+      {
+        "name": "The Evidence Rule",
+        "body": "Cor nunca declara produtividade ou sucesso de entrega. O estado tem texto e ícone e corresponde à evidência salva.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Mostrar data, escopo e janela da evidência.",
+      "Preservar atividade transversal entre projetos.",
+      "Manter foco visível e semântica nativa."
+    ],
+    "donts": [
+      "Não criar rankings de produtividade por commits.",
+      "Não decorar a aplicação com gradientes ou gráficos sem dados.",
+      "Não expor dados globais privados de Contributor em outro workspace."
+    ]
   }
 }

@@ -1,10 +1,11 @@
 import { ActivityStatus, Prisma, SyncTrigger } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { findOrCreateContributor } from "@/lib/contributors";
+import { findOrCreateContributor, reconcileRepositoryContributors } from "@/lib/contributors";
 import { getLastSevenDayPeriod } from "@/lib/dates";
 import { getInstallationAccessToken } from "@/lib/github/app-auth";
 import { fetchRepositoryCommits, type GitHubCommitWithBranch } from "@/lib/github/commits";
 import { configureNewRepository } from "@/lib/github/installations";
+import { fetchRepositoryPeopleSuggestions } from "@/lib/github/people";
 import { isScheduledSyncDue } from "@/lib/sync-schedule";
 
 export const MANUAL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
@@ -234,6 +235,22 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
         }),
         prisma.repositoryBranch.findMany({ where: { repositoryId: repository.id }, orderBy: { name: "asc" } })
       ]);
+    } else {
+      const people = await fetchRepositoryPeopleSuggestions({
+        owner: repository.owner, name: repository.name, token, signal
+      });
+      if (people.errors.length > 0) {
+        configurationError = people.errors.join("\n");
+      } else {
+        try {
+          expectedContributors = await reconcileRepositoryContributors(repository.id, people.allPeople, { signal });
+        } catch (error) {
+          configurationError = `Expected contributors could not be refreshed: ${errorMessage(error)}`;
+        }
+      }
+      if (configurationError) {
+        await prisma.repository.update({ where: { id: repository.id }, data: { configurationError } });
+      }
     }
     assertTimeAvailable();
     const commits = await fetchRepositoryCommits({
@@ -272,8 +289,8 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
         contributorId = contributor.id;
         contributorCache.set(identity, contributorId);
 
-        // Failed onboarding must not turn discovered authors into explicit roster choices.
-        if (!configurationError) {
+        // A real GitHub commit is evidence even before the cached historical author list updates.
+        if (inputContributor.githubUserId) {
           await prisma.repositoryContributor.upsert({
             where: {
               repositoryId_contributorId: {
@@ -285,8 +302,13 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
             create: {
               repositoryId: repository.id,
               contributorId,
-              isExpected: false
+              isExpected: true,
+              source: "GITHUB"
             }
+          });
+          await prisma.repositoryContributor.updateMany({
+            where: { repositoryId: repository.id, contributorId, source: "GITHUB", isIgnored: false, isExpected: false },
+            data: { isExpected: true }
           });
         }
       }
@@ -307,6 +329,11 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
 
       activityByContributor.set(contributorId, current);
     }
+
+    expectedContributors = await prisma.repositoryContributor.findMany({
+      where: { repositoryId: repository.id, isExpected: true, isIgnored: false },
+      include: { contributor: true }
+    });
 
     const snapshotRows: Prisma.CommitActivitySnapshotCreateManyInput[] = expectedContributors.map(
       (repositoryContributor) => {

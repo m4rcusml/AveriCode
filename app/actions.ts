@@ -30,6 +30,9 @@ import {
   workspaceMemberRole
 } from "@/lib/workspaces";
 
+const MANUAL_REPOSITORY_BUDGET_MS = 60_000;
+const MANUAL_WORKSPACE_BUDGET_MS = 240_000;
+
 function stringValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
@@ -166,15 +169,6 @@ function parseSuggestedContributor(value: FormDataEntryValue) {
   }
 }
 
-async function syncAfterContributorAdded(repositoryId: string) {
-  try {
-    await syncRepositoryActivity({ repositoryId, trigger: "MANUAL" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function switchWorkspaceAction(formData: FormData) {
   const user = await requireUser();
   const workspaceId = stringValue(formData, "workspaceId");
@@ -265,12 +259,9 @@ export async function addExpectedContributorAction(formData: FormData) {
   await addExpectedContributor(user.id, repositoryId, {
     username: stringValue(formData, "username")
   });
-  const synced = await syncAfterContributorAdded(repositoryId);
-
   revalidatePath("/dashboard");
   revalidatePath(destination);
-  if (!synced) redirectWithSyncError(destination, "sync_failed");
-  redirect(destination);
+  redirectWithSettingsStatus(destination, { contributors_saved: "1" });
 }
 
 export async function confirmExpectedContributorsAction(formData: FormData) {
@@ -282,17 +273,15 @@ export async function confirmExpectedContributorsAction(formData: FormData) {
     .map(parseSuggestedContributor)
     .filter((contributor): contributor is NonNullable<typeof contributor> => contributor !== null);
 
-  let synced = true;
   if (contributors.length > 0) {
     await addExpectedContributors(user.id, repositoryId, contributors);
-    synced = await syncAfterContributorAdded(repositoryId);
   } else {
     await assertRepositoryWriteAccess(user.id, repositoryId);
   }
 
   revalidatePath("/dashboard");
   revalidatePath(destination);
-  if (!synced) redirectWithSyncError(destination, "sync_failed");
+  if (contributors.length > 0) redirectWithSettingsStatus(destination, { contributors_saved: "1" });
   redirect(destination);
 }
 
@@ -395,7 +384,8 @@ export async function syncRepositoryNowAction(formData: FormData) {
   try {
     await syncRepositoryActivity({
       repositoryId,
-      trigger: "MANUAL"
+      trigger: "MANUAL",
+      deadline: Date.now() + MANUAL_REPOSITORY_BUDGET_MS
     });
   } catch (error) {
     if (isRunningSyncError(error)) {
@@ -443,8 +433,13 @@ export async function syncWorkspaceRepositoriesNowAction(formData: FormData) {
   let succeededCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
+  const deadline = Date.now() + MANUAL_WORKSPACE_BUDGET_MS;
 
   for (const repository of repositories) {
+    if (Date.now() >= deadline - 1000) {
+      skippedCount += 1;
+      continue;
+    }
     const retryAfterMs = await getManualSyncCooldown(repository.id);
 
     if (retryAfterMs > 0) {
@@ -455,7 +450,8 @@ export async function syncWorkspaceRepositoriesNowAction(formData: FormData) {
     try {
       await syncRepositoryActivity({
         repositoryId: repository.id,
-        trigger: "MANUAL"
+        trigger: "MANUAL",
+        deadline: Math.min(deadline, Date.now() + MANUAL_REPOSITORY_BUDGET_MS)
       });
       succeededCount += 1;
     } catch (error) {
@@ -519,10 +515,16 @@ export async function refreshInstallationRepositoriesAction(formData: FormData) 
   }
 
   await assertWorkspaceWriteAccess(user.id, installation.workspaceId);
-  await importInstallationRepositories(installation.id);
+  let failed = false;
+  try {
+    await importInstallationRepositories(installation.id, { signal: AbortSignal.timeout(MANUAL_REPOSITORY_BUDGET_MS) });
+  } catch {
+    failed = true;
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/settings");
+  if (failed) redirectWithSyncError(destination, "refresh_failed");
   redirect(destination);
 }
 

@@ -10,6 +10,7 @@ import {
 } from "@/app/actions";
 import { ManualSyncToast } from "@/components/manual-sync-toast";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { SyncControl } from "@/components/sync-control";
 import { getAuthSession } from "@/lib/auth";
 import { getRepositoryPeopleSuggestions, type GitHubPersonSuggestion } from "@/lib/github/people";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,8 @@ type RepositoryContributorSetupPageProps = {
   }>;
   searchParams?: Promise<{
     imported?: string | string[];
+    contributors_saved?: string | string[];
+    suggestions?: string | string[];
     manual_sync_error?: string | string[];
     retry_after_ms?: string | string[];
   }>;
@@ -146,9 +149,9 @@ async function ContributorSuggestions({
         <section className="section">
           <div className="section-header">
             <div>
-              <h2 className="section-title">Sugestões do AveriCode</h2>
+              <h2 className="section-title">Autores de commits no GitHub</h2>
               <p className="section-copy">
-                Pessoas com acesso que já contribuíram neste projeto. Elas estão selecionadas por padrão.
+                Autores reconhecidos no histórico de commits deste projeto. Ter acesso ao repositório, por si só, não inclui uma pessoa nesta lista.
               </p>
             </div>
           </div>
@@ -156,31 +159,14 @@ async function ContributorSuggestions({
             alreadyExpectedIds={alreadyExpectedIdSet}
             defaultChecked
             people={suggestions.suggestedContributors}
-            title="Sugestões do AveriCode"
-          />
-        </section>
-
-        <section className="section">
-          <div className="section-header">
-            <div>
-              <h2 className="section-title">Acesso sem contribuições</h2>
-              <p className="section-copy">
-                Pessoas com acesso que não aparecem no histórico de contribuições. Selecione quem também deve ser esperado.
-              </p>
-            </div>
-          </div>
-          <SuggestionTable
-            alreadyExpectedIds={alreadyExpectedIdSet}
-            defaultChecked={false}
-            people={suggestions.accessWithoutContributions}
-            title="Acesso sem contribuições"
+            title="Autores de commits no GitHub"
           />
         </section>
 
         <section className="section action-section">
           <div>
             <h2 className="section-title">Confirmar seleção de pessoas</h2>
-            <p className="section-copy">As pessoas selecionadas nas duas listas serão adicionadas como esperadas.</p>
+            <p className="section-copy">Os autores selecionados serão adicionados como pessoas esperadas. Use a inclusão manual para registrar outra pessoa da equipe.</p>
           </div>
           <PendingSubmitButton className="button button-primary" pendingLabel="Adicionando…">
             <Users aria-hidden size={16} />
@@ -228,6 +214,7 @@ export default async function RepositoryContributorSetupPage({
 
   const membership = await assertWorkspaceAccess(session.user.id, repository.workspaceId);
   const canManage = membership.role === "OWNER" || membership.role === "ADMIN";
+  const showSuggestions = (Array.isArray(resolvedSearchParams?.suggestions) ? resolvedSearchParams.suggestions[0] : resolvedSearchParams?.suggestions) === "1";
 
   const alreadyExpectedIds = repository.contributors
     .map((repositoryContributor) => repositoryContributor.contributor.githubUserId)
@@ -257,6 +244,8 @@ export default async function RepositoryContributorSetupPage({
           </Link>
         </div>
       </div>
+
+      {resolvedSearchParams?.contributors_saved ? <div className="notice notice-success"><div><strong>Equipe esperada salva.</strong><p>A atividade será recalculada na próxima sincronização. Você pode atualizar este projeto agora.</p></div>{canManage ? <SyncControl repositoryId={repository.id} className="button button-secondary" label="Sincronizar projeto" /> : null}</div> : null}
 
       {resolvedSearchParams?.imported ? (
         <div className="notice notice-success">
@@ -289,9 +278,9 @@ export default async function RepositoryContributorSetupPage({
         </form>
       </section>
 
-      {canManage ? <Suspense fallback={<ContributorSuggestionsFallback />}>
+      {canManage ? showSuggestions ? <Suspense fallback={<ContributorSuggestionsFallback />}>
         <ContributorSuggestions alreadyExpectedIds={alreadyExpectedIds} repositoryId={repository.id} />
-      </Suspense> : <p className="notice">Somente responsáveis e administradores podem alterar a equipe esperada.</p>}
+      </Suspense> : <section className="section"><h2 className="section-title">Autores de commits no GitHub</h2><p className="section-copy">Consulte o histórico do GitHub para revisar autores que ainda não estão na equipe esperada. O acesso ao repositório, por si só, não inclui uma pessoa.</p><Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/contributors?suggestions=1`}>Buscar autores no GitHub</Link></section> : <p className="notice">Somente responsáveis e administradores podem alterar a equipe esperada.</p>}
 
       <section className="section">
         <div className="section-header">
@@ -315,6 +304,7 @@ export default async function RepositoryContributorSetupPage({
                 <tr>
                   <th>Contribuidor</th>
                   <th>Usuário</th>
+                  <th>Origem</th>
                   <th>Situação</th>
                   <th>Ações</th>
                 </tr>
@@ -334,6 +324,7 @@ export default async function RepositoryContributorSetupPage({
                         <span className="muted">Não informado</span>
                       )}
                     </td>
+                    <td>{repositoryContributor.source === "GITHUB" ? "Histórico de commits" : repositoryContributor.source === "MANUAL" ? "Adicionada manualmente" : "Lista anterior"}</td>
                     <td>
                       <span
                         className={`status-badge ${

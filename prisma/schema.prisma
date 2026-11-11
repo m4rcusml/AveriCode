@@ -278,16 +278,24 @@ model Contributor {
   updatedAt    DateTime                 @updatedAt
 }
 
+enum RepositoryContributorSource {
+  GITHUB
+  MANUAL
+  LEGACY
+}
+
 model RepositoryContributor {
-  id            String      @id @default(cuid())
+  id            String                      @id @default(cuid())
   repositoryId  String
   contributorId String
-  isExpected    Boolean     @default(false)
-  isIgnored     Boolean     @default(false)
-  repository    Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  contributor   Contributor @relation(fields: [contributorId], references: [id], onDelete: Cascade)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  isExpected    Boolean                     @default(false)
+  isIgnored     Boolean                     @default(false)
+  // Fallback for old application instances during deployment; current writers set the source explicitly.
+  source        RepositoryContributorSource @default(LEGACY)
+  repository    Repository                  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  contributor   Contributor                 @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
 
   @@unique([repositoryId, contributorId])
   @@index([contributorId])

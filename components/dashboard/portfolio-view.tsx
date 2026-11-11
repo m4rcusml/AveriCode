@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight, CircleCheck, Clock3, GitBranch, LockKeyhole, RefreshCw, Users } from "lucide-react";
-import { syncRepositoryNowAction } from "@/app/actions";
-import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { ArrowDownLeft, ArrowUpRight, CircleCheck, Clock3, GitBranch, GitCommitHorizontal, LockKeyhole, Users } from "lucide-react";
+import { SyncControl } from "@/components/sync-control";
 import { ContributorRow } from "@/components/dashboard/contributor-row";
 import type { DashboardRepository, DashboardUpdate } from "@/lib/dashboard/queries";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
+import { activityDistribution, commitCategory } from "@/lib/dashboard/summary";
+import { AvatarGroup, ParticipationBar, PersonAvatar } from "@/components/dashboard/portfolio-visuals";
 
 const states = {
   CURRENT: { label: "Atualizado", className: "status-active" },
@@ -25,10 +26,8 @@ export function RepositorySyncStatus({ repository }: { repository: DashboardRepo
 
 export function PortfolioRow({ repository, returnTo, canManage }: { repository: DashboardRepository; returnTo: string; canManage: boolean }) {
   const expected = repository.contributorRows.filter((c) => !c.isIgnored);
-  const active = expected.filter((c) => c.status === "ACTIVE").length;
-  const unknown = expected.filter((c) => c.status === "UNKNOWN").length;
+  const participation = activityDistribution(expected);
   const latest = repository.updates[0];
-  const presenceLabel = !expected.length ? "Definir contribuidores" : unknown === expected.length ? `Sem dado atual · ${expected.length} pessoas` : `${active} de ${expected.length} com commits${unknown ? ` · ${unknown} sem dado atual` : ""}`;
   return <article className="portfolio-project" id={`project-${repository.id}`}>
     <details className="project-details">
       <summary className="project-summary">
@@ -37,10 +36,8 @@ export function PortfolioRow({ repository, returnTo, canManage }: { repository: 
           <span className="project-owner">{repository.fullName.split("/").slice(0,-1).join("/")}{repository.private ? <LockKeyhole aria-label="Privado" size={11} /> : null}</span>
         </span></span>
         <span className="project-state"><RepositorySyncStatus repository={repository} /><small>{formatRelativeTime(repository.lastSyncedAt)}</small></span>
-        <span className="project-presence"><span className="presence-ruler" role="img" aria-label={presenceLabel}>
-          {expected.slice(0,16).map((person) => <span className={`presence-dot presence-${person.status.toLowerCase()}`} key={person.id} title={`${person.name}: ${person.status === "ACTIVE" ? "com commits" : person.status === "INACTIVE" ? "sem commits" : "sem dado atual"}`} />)}
-        </span><small>{presenceLabel}</small></span>
-        <span className="project-last-change"><span>{latest?.message.split("\n")[0] ?? "Nenhuma atualização salva"}</span><small>{latest ? `${latest.authorUsername ?? "Autor não associado"} · ${formatRelativeTime(latest.committedAt)}` : "Sincronize para obter contexto"}</small></span>
+        <span className="project-presence"><ParticipationBar counts={participation} compact /><AvatarGroup people={expected} /></span>
+        <span className="project-last-change"><span className="recorded-commits"><GitCommitHorizontal aria-hidden size={14} />{repository.syncState === "CURRENT" ? `${repository.recordedCommitCount} registrados em 7 dias` : "Captura a atualizar"}</span><span>{latest?.message.split("\n")[0] ?? "Nenhuma atualização salva"}</span><small>{latest ? `${latest.authorUsername ?? "Autor não associado"} · ${formatRelativeTime(latest.committedAt)}` : "Sincronize para obter contexto"}</small></span>
       </summary>
       <div className="project-detail-body">
         <div className="project-detail-toolbar"><div className="branch-summary"><GitBranch aria-hidden size={14} /><span>{repository.branches.length} {repository.branches.length === 1 ? "branch monitorada" : "branches monitoradas"}</span>{repository.branches.map((branch) => <code className="branch-chip" key={branch}>{branch}</code>)}</div><div className="button-row">
@@ -54,12 +51,20 @@ export function PortfolioRow({ repository, returnTo, canManage }: { repository: 
         {repository.contributorRows.length ? <div className="contributor-list">{repository.contributorRows.map((contributor) => <ContributorRow contributor={contributor} key={contributor.id} returnTo={returnTo} canManage={canManage} />)}</div> : <div className="empty-state"><div><h3>Quem participa deste projeto?</h3><p>Defina as pessoas esperadas para comparar a atividade registrada.</p><Link className="text-link" href={`/dashboard/repositories/${repository.id}/contributors`}>Configurar contribuidores <ArrowUpRight size={14} /></Link></div></div>}
       </div>
     </details>
-    <div className="project-sync-action"><form action={syncRepositoryNowAction}><input name="repositoryId" type="hidden" value={repository.id} /><input name="returnTo" type="hidden" value={returnTo} /><PendingSubmitButton aria-label={`Sincronizar ${repository.fullName}`} className="icon-button" disabled={!canManage || repository.syncState === "RUNNING" || repository.syncState === "SUSPENDED"} pendingLabel={<RefreshCw aria-hidden className="spin" size={16} />} title={canManage ? "Sincronizar projeto" : "Apenas responsáveis e administradores podem sincronizar"}><RefreshCw aria-hidden size={16} /></PendingSubmitButton></form></div>
+    <div className="project-sync-action"><SyncControl repositoryId={repository.id} className="icon-button" iconOnly ariaLabel={`Sincronizar ${repository.fullName}`} disabled={!canManage || repository.syncState === "RUNNING" || repository.syncState === "SUSPENDED"} title={canManage ? "Sincronizar projeto" : "Apenas responsáveis e administradores podem sincronizar"} /></div>
   </article>;
 }
 
-export function UpdatesFeed({ updates }: { updates: DashboardUpdate[] }) {
+export function UpdatesFeed({ updates, emptyReason }: { updates: DashboardUpdate[]; emptyReason: "filtered" | "no-capture" | "no-updates" }) {
   return <aside className="updates-panel" id="updates" aria-labelledby="updates-title"><div className="panel-heading"><div><h2 id="updates-title">Últimas atualizações</h2><p>Mudanças nas branches monitoradas</p></div><ArrowUpRight aria-hidden size={18} /></div>
-    {updates.length ? <ol className="updates-feed">{updates.map((update) => <li key={update.id}><div className="update-meta"><span>{update.repositoryName.split("/").at(-1)}</span><time dateTime={update.committedAt.toISOString()} title={formatDateTime(update.committedAt)}>{formatRelativeTime(update.committedAt)}</time></div><a className="update-message" href={update.url} rel="noreferrer" target="_blank">{update.message.split("\n")[0]}<ArrowUpRight aria-hidden size={12} /></a><div className="update-details"><span>{update.authorUsername ?? "Autor não associado"}</span><code>{update.branch}</code><code>{update.sha.slice(0,7)}</code></div></li>)}</ol> : <div className="feed-empty"><GitBranch aria-hidden size={24} /><h3>O contexto começa no próximo sync</h3><p>As mensagens dos commits aparecerão aqui depois de sincronizar os projetos conectados.</p></div>}
+    {updates.length ? <ol className="updates-feed">{updates.map((update) => {
+      const category = commitCategory(update.message);
+      return <li key={update.id}>
+        <div className="update-meta"><span><GitCommitHorizontal aria-hidden size={14} />{update.repositoryName.split("/").at(-1)}</span><time dateTime={update.committedAt.toISOString()} title={formatDateTime(update.committedAt)}>{formatRelativeTime(update.committedAt)}</time></div>
+        <a className="update-message" href={update.url} rel="noreferrer" target="_blank">{category ? <code className="commit-prefix" title={`Prefixo informado na mensagem: ${category}`}>{category}</code> : null}{update.message.split("\n")[0]}<ArrowUpRight aria-hidden size={12} /></a>
+        <div className="update-author"><PersonAvatar person={{ name: update.authorUsername ?? "Autor não associado", avatarUrl: update.authorAvatarUrl }} /><span>{update.authorUsername ?? "Autor não associado"}</span></div>
+        <div className="update-details"><span className="update-branch"><GitBranch aria-hidden size={12} /><code>{update.branch}</code></span><code>{update.sha.slice(0,7)}</code></div>
+      </li>;
+    })}</ol> : <div className="feed-empty"><GitBranch aria-hidden size={24} />{emptyReason === "filtered" ? <><h3>Nenhuma atualização corresponde aos filtros</h3><p>Limpe os filtros para ver as mudanças registradas no portfólio.</p><Link className="text-link" href="/dashboard">Limpar filtros <ArrowUpRight aria-hidden size={13} /></Link></> : emptyReason === "no-capture" ? <><h3>O contexto começa no próximo sync</h3><p>As mensagens dos commits aparecerão aqui depois de sincronizar os projetos conectados.</p></> : <><h3>Sem atualizações registradas</h3><p>Quando houver commits nas branches monitoradas, as mudanças aparecerão aqui.</p></>}</div>}
     <p className="feed-footnote">Atualizações de código registradas. Entregas, revisões e impacto de negócio precisam de contexto da equipe.</p></aside>;
 }

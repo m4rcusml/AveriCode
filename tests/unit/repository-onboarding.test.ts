@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  addExpectedContributorsToRepository: vi.fn(),
+  reconcileRepositoryContributors: vi.fn(),
   fetchRecentlyUpdatedRepositoryBranches: vi.fn(),
   fetchRepositoryPeopleSuggestions: vi.fn(),
   getInstallationAccessToken: vi.fn(),
@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 vi.mock("@/lib/contributors", () => ({
-  addExpectedContributorsToRepository: mocks.addExpectedContributorsToRepository
+  reconcileRepositoryContributors: mocks.reconcileRepositoryContributors
 }));
 vi.mock("@/lib/github/commits", () => ({
   fetchRecentlyUpdatedRepositoryBranches: mocks.fetchRecentlyUpdatedRepositoryBranches
@@ -93,7 +93,7 @@ describe("repository onboarding", () => {
       accessWithoutContributions: [],
       errors: []
     });
-    mocks.addExpectedContributorsToRepository.mockResolvedValue([{ id: "expected-1" }]);
+    mocks.reconcileRepositoryContributors.mockResolvedValue([{ id: "expected-1" }]);
     mocks.fetchRecentlyUpdatedRepositoryBranches.mockResolvedValue(
       Array.from({ length: 5 }, (_, index) => ({
         name: `feature/${index + 1}`,
@@ -107,7 +107,7 @@ describe("repository onboarding", () => {
     const result = await importInstallationRepositories("installation-record-1");
 
     expect(mocks.prisma.repository.update).not.toHaveBeenCalled();
-    expect(mocks.addExpectedContributorsToRepository).not.toHaveBeenCalled();
+    expect(mocks.reconcileRepositoryContributors).not.toHaveBeenCalled();
     expect(mocks.prisma.repositoryBranch.createMany).not.toHaveBeenCalled();
     expect(result).toEqual([]);
   });
@@ -119,7 +119,7 @@ describe("repository onboarding", () => {
 
     expect(mocks.fetchRepositoryPeopleSuggestions).not.toHaveBeenCalled();
     expect(mocks.fetchRecentlyUpdatedRepositoryBranches).not.toHaveBeenCalled();
-    expect(mocks.addExpectedContributorsToRepository).not.toHaveBeenCalled();
+    expect(mocks.reconcileRepositoryContributors).not.toHaveBeenCalled();
     expect(mocks.prisma.repositoryBranch.createMany).not.toHaveBeenCalled();
     expect(mocks.prisma.repository.update).toHaveBeenCalledWith({
       where: { id: "repository-1" },
@@ -175,8 +175,17 @@ describe("repository onboarding", () => {
 
     const result = await importInstallationRepositories("installation-record-1");
 
-    expect(mocks.addExpectedContributorsToRepository).toHaveBeenCalledWith("repository-1", expect.any(Array), { preserveExisting: true, signal: undefined });
+    expect(mocks.reconcileRepositoryContributors).toHaveBeenCalledWith("repository-1", expect.any(Array), { signal: undefined });
     expect(mocks.prisma.repository.update).toHaveBeenLastCalledWith({ where: { id: "repository-1" }, data: { configurationError: null } });
     expect(result[0].setup?.warnings).toEqual([]);
+  });
+
+  test("stops an expired installation refresh before touching saved repository access", async () => {
+    const controller = new AbortController();
+    controller.abort(new Error("Refresh deadline expired"));
+    await expect(importInstallationRepositories("installation-record-1", { signal: controller.signal }))
+      .rejects.toThrow("Refresh deadline expired");
+    expect(mocks.prisma.repository.deleteMany).not.toHaveBeenCalled();
+    expect(mocks.githubAppRequest).not.toHaveBeenCalled();
   });
 });
