@@ -8,10 +8,10 @@ export function PageLoading({ title }: PageLoadingProps) {
       <div className="page-header">
         <div>
           <h1 className="page-title">{title}</h1>
-          <p className="page-copy">Loading workspace data...</p>
+          <p className="page-copy">Carregando dados do workspace…</p>
         </div>
       </div>
-      <section className="metric-grid" aria-label="Loading metrics">
+      <section className="metric-grid" aria-label="Carregando resumo">
         {[0, 1, 2, 3].map((item) => (
           <div className="metric-card skeleton-card" key={item}>
             <div className="skeleton-line skeleton-line-short" />

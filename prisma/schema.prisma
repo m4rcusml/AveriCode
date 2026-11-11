@@ -128,6 +128,8 @@ model Workspace {
   repositoryAccessRequests RepositoryAccessRequest[]
   syncSchedule             SyncSchedule              @default(WEEKLY)
   lastScheduledSyncAt      DateTime?
+  scheduledSyncStartedAt   DateTime?
+  scheduledSyncLeaseAt     DateTime?
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
 }
@@ -152,6 +154,7 @@ model GitHubInstallation {
   accountLogin        String
   accountType         GitHubAccountType
   repositorySelection RepositorySelection
+  suspendedAt         DateTime?
   workspaceId         String
   workspace           Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   repositories        Repository[]
@@ -174,18 +177,36 @@ model Repository {
   defaultBranch        String?
   isActive             Boolean                       @default(true)
   lastSyncedAt         DateTime?
+  configurationError   String?                       @db.Text
   workspace            Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   installation         GitHubInstallation            @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
   branches             RepositoryBranch[]
   contributors         RepositoryContributor[]
   snapshots            CommitActivitySnapshot[]
   syncRuns             SyncRun[]
+  updates              RepositoryUpdate[]
   accessRequestItems   RepositoryAccessRequestItem[]
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @updatedAt
 
   @@unique([workspaceId, githubRepoId])
   @@index([workspaceId, isActive])
+}
+
+model RepositoryUpdate {
+  id              String     @id @default(cuid())
+  repositoryId    String
+  sha             String
+  message         String     @db.Text
+  url             String
+  authorUsername  String?
+  authorAvatarUrl String?
+  committedAt     DateTime
+  branch          String
+  repository      Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, sha])
+  @@index([repositoryId, committedAt])
 }
 
 model RepositoryAccessRequest {

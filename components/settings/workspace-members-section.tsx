@@ -23,8 +23,8 @@ export function WorkspaceMembersSection({
     <section className="section">
       <div className="section-header">
         <div>
-          <h2 className="section-title">Workspace members</h2>
-          <p className="section-copy">People who can access this workspace and its monitored repository data.</p>
+          <h2 className="section-title">Membros do workspace</h2>
+          <p className="section-copy">Pessoas com acesso a este workspace e aos dados dos projetos monitorados.</p>
         </div>
       </div>
       {canManageWorkspace ? (
@@ -32,23 +32,23 @@ export function WorkspaceMembersSection({
           <input name="workspaceId" type="hidden" value={workspaceId} />
           <input name="returnTo" type="hidden" value="/settings" />
           <div className="field">
-            <label htmlFor="workspace-member-identifier">GitHub username or email</label>
+            <label htmlFor="workspace-member-identifier">Usuário GitHub ou e-mail</label>
             <input
               id="workspace-member-identifier"
               name="identifier"
-              placeholder="octocat or user@example.com"
+              placeholder="octocat ou pessoa@empresa.com"
             />
           </div>
           <div className="field">
-            <label htmlFor="workspace-member-role">Role</label>
+            <label htmlFor="workspace-member-role">Função</label>
             <select defaultValue="MEMBER" id="workspace-member-role" name="role">
-              <option value="MEMBER">Member</option>
-              <option value="ADMIN">Admin</option>
+              <option value="MEMBER">Membro</option>
+              <option value="ADMIN">Administrador</option>
             </select>
           </div>
-          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adicionando…">
             <UserPlus aria-hidden size={16} />
-            Add member
+            Adicionar membro
           </PendingSubmitButton>
         </form>
       ) : null}
@@ -56,13 +56,13 @@ export function WorkspaceMembersSection({
         <table className="data-table">
           <thead>
             <tr>
-              <th>Member</th>
+              <th>Membro</th>
               <th>GitHub</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Owned repos</th>
-              <th>Joined</th>
-              <th>Actions</th>
+              <th>E-mail</th>
+              <th>Função</th>
+              <th>Projetos da conta</th>
+              <th>Entrou em</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -70,16 +70,16 @@ export function WorkspaceMembersSection({
               <tr key={member.id}>
                 <td>
                   <div className="cell-title">{userLabel(member)}</div>
-                  {member.isCurrentUser ? <div className="cell-subtitle">Current user</div> : null}
+                  {member.isCurrentUser ? <div className="cell-subtitle">Você</div> : null}
                 </td>
                 <td>
-                  {member.githubUsername ? `@${member.githubUsername}` : <span className="muted">None</span>}
+                  {member.githubUsername ? `@${member.githubUsername}` : <span className="muted">Não informado</span>}
                 </td>
-                <td>{member.email ?? <span className="muted">None</span>}</td>
+                <td>{member.email ?? <span className="muted">Não informado</span>}</td>
                 <td>
                   <span className={`status-badge ${member.isOwner ? "status-active" : "status-unknown"}`}>
                     <ShieldCheck aria-hidden size={16} />
-                    {member.role}
+                    {member.role === "OWNER" ? "Responsável" : member.role === "ADMIN" ? "Administrador" : "Membro"}
                   </span>
                 </td>
                 <td>{member.ownedRepositoryCount}</td>
@@ -90,26 +90,26 @@ export function WorkspaceMembersSection({
                       <form action={updateWorkspaceMemberRoleAction} className="inline-form">
                         <input name="workspaceMemberId" type="hidden" value={member.id} />
                         <input name="returnTo" type="hidden" value="/settings" />
-                        <select defaultValue={member.role} name="role">
-                          <option value="MEMBER">Member</option>
-                          <option value="ADMIN">Admin</option>
+                        <select aria-label={`Função de ${userLabel(member)}`} defaultValue={member.role} name="role">
+                          <option value="MEMBER">Membro</option>
+                          <option value="ADMIN">Administrador</option>
                         </select>
-                        <PendingSubmitButton className="button button-secondary" pendingLabel="Saving...">
+                        <PendingSubmitButton className="button button-secondary" pendingLabel="Salvando…">
                           <Save aria-hidden size={16} />
-                          Save
+                          Salvar
                         </PendingSubmitButton>
                       </form>
                       <form action={removeWorkspaceMemberAction}>
                         <input name="workspaceMemberId" type="hidden" value={member.id} />
                         <input name="returnTo" type="hidden" value="/settings" />
-                        <PendingSubmitButton className="button button-danger" pendingLabel="Removing...">
+                        <PendingSubmitButton className="button button-danger" pendingLabel="Removendo…">
                           <Trash2 aria-hidden size={16} />
-                          Remove
+                          Remover
                         </PendingSubmitButton>
                       </form>
                     </div>
                   ) : (
-                    <span className="muted">{member.isOwner ? "Owner protected" : "No access"}</span>
+                    <span className="muted">{member.isOwner ? "Responsável protegido" : "Sem permissão"}</span>
                   )}
                 </td>
               </tr>

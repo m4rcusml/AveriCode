@@ -1,5 +1,5 @@
 import { PageLoading } from "@/components/page-loading";
 
 export default function DashboardLoading() {
-  return <PageLoading title="Dashboard" />;
+  return <PageLoading title="Portfólio" />;
 }

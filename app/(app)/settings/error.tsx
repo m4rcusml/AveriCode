@@ -11,9 +11,9 @@ export default function SettingsError({ error, reset }: SettingsErrorProps) {
   return (
     <RouteError
       error={error}
-      message="AveriCode could not load workspace settings."
+      message="Não foi possível carregar as configurações do workspace. Tente novamente."
       reset={reset}
-      title="Settings failed to load"
+      title="Não foi possível carregar as configurações"
     />
   );
 }

@@ -31,5 +31,6 @@ describe("GitHub setup state", () => {
 
     expect(() => verifyGitHubSetupState(`${token}tampered`, "user-1", 1_000_500)).toThrow();
     expect(() => verifyGitHubSetupState(token, "user-1", 2_000_000)).toThrow("expired");
+    expect(() => verifyGitHubSetupState(token, "user-1", 1_900_000)).toThrow("expired");
   });
 });

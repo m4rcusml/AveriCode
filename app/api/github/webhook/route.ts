@@ -110,7 +110,7 @@ async function handleWebhookEvent(eventName: string | null, payload: GitHubWebho
     eventName === "installation_repositories" ||
     eventName === "repository" ||
     (eventName === "installation" &&
-      ["created", "new_permissions_accepted", "unsuspend"].includes(payload.action ?? ""))
+      ["created", "new_permissions_accepted", "suspend", "unsuspend"].includes(payload.action ?? ""))
   ) {
     const results = await refreshLinkedInstallations(installationId);
 
@@ -147,6 +147,9 @@ export async function POST(request: NextRequest) {
 
   try {
     payload = JSON.parse(payloadText) as GitHubWebhookPayload;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new Error("Invalid webhook payload.");
+    }
   } catch {
     return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
   }

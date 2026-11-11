@@ -4,10 +4,15 @@ import { findOrCreateContributor } from "@/lib/contributors";
 import { getLastSevenDayPeriod } from "@/lib/dates";
 import { getInstallationAccessToken } from "@/lib/github/app-auth";
 import { fetchRepositoryCommits, type GitHubCommitWithBranch } from "@/lib/github/commits";
-import { isScheduledSyncDue, syncScheduleIntervalMs } from "@/lib/sync-schedule";
+import { configureNewRepository } from "@/lib/github/installations";
+import { isScheduledSyncDue } from "@/lib/sync-schedule";
 
 export const MANUAL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 const RUNNING_SYNC_STALE_MS = 30 * 60 * 1000;
+export const SCHEDULED_SYNC_BUDGET_MS = 250_000;
+const SCHEDULED_REPOSITORY_BUDGET_MS = 180_000;
+const SCHEDULED_SYNC_LEASE_MS = 10 * 60 * 1000;
+const SCHEDULED_SYNC_RESERVE_MS = 10_000;
 
 type ContributorInput = {
   githubUserId?: string | null;
@@ -20,6 +25,7 @@ type ContributorInput = {
 type SyncRepositoryInput = {
   repositoryId: string;
   trigger: SyncTrigger;
+  deadline?: number;
 };
 
 type SyncActiveRepositoriesInput = {
@@ -72,14 +78,12 @@ function contributorIdentity(input: ContributorInput) {
 }
 
 function getCommitDate(commit: GitHubCommitWithBranch) {
-  const date = commit.commit.author?.date;
-
-  if (!date) {
-    return null;
+  for (const value of [commit.commit.committer?.date, commit.commit.author?.date]) {
+    if (!value) continue;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
   }
-
-  const parsed = new Date(date);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return null;
 }
 
 function errorMessage(error: unknown) {
@@ -90,9 +94,12 @@ function errorMessage(error: unknown) {
   return String(error);
 }
 
-export async function getManualSyncCooldown(repositoryId: string) {
+export async function getManualSyncCooldown(
+  repositoryId: string,
+  db: Pick<Prisma.TransactionClient, "syncRun"> = prisma
+) {
   const cooldownStart = new Date(Date.now() - MANUAL_SYNC_COOLDOWN_MS);
-  const recentSync = await prisma.syncRun.findFirst({
+  const recentSync = await db.syncRun.findFirst({
     where: {
       repositoryId,
       trigger: "MANUAL",
@@ -123,6 +130,14 @@ export async function assertCanRunManualSync(repositoryId: string) {
 }
 
 export async function syncRepositoryActivity(input: SyncRepositoryInput) {
+  const signal = input.deadline ? AbortSignal.timeout(Math.max(1, input.deadline - Date.now())) : undefined;
+  function assertTimeAvailable() {
+    signal?.throwIfAborted();
+    if (input.deadline && Date.now() >= input.deadline) {
+      throw new Error("Scheduled sync reached its time budget. Retry sync to complete this project.");
+    }
+  }
+  assertTimeAvailable();
   const repository = await prisma.repository.findUnique({
     where: { id: input.repositoryId },
     include: {
@@ -147,47 +162,51 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
   if (!repository) {
     throw new Error("Repository not found.");
   }
+  if (repository.installation.suspendedAt) {
+    throw new Error("The GitHub App installation is suspended. Restore access on GitHub to sync this project.");
+  }
 
   const staleBefore = new Date(Date.now() - RUNNING_SYNC_STALE_MS);
 
-  await prisma.syncRun.updateMany({
-    where: {
-      repositoryId: repository.id,
-      status: "RUNNING",
-      startedAt: {
-        lt: staleBefore
+  const syncRun = await prisma.$transaction(async (tx) => {
+    // Serialize the cooldown check and claim across cron, API, and server actions.
+    await tx.$queryRaw`SELECT "id" FROM "Repository" WHERE "id" = ${repository.id} FOR UPDATE`;
+    await tx.syncRun.updateMany({
+      where: {
+        repositoryId: repository.id,
+        status: "RUNNING",
+        startedAt: { lt: staleBefore }
+      },
+      data: {
+        status: "FAILED",
+        finishedAt: new Date(),
+        error: "Sync was marked as failed after exceeding the running timeout."
       }
-    },
-    data: {
-      status: "FAILED",
-      finishedAt: new Date(),
-      error: "Sync was marked as failed after exceeding the running timeout."
+    });
+
+    const runningSync = await tx.syncRun.findFirst({
+      where: { repositoryId: repository.id, status: "RUNNING" }
+    });
+
+    if (runningSync) {
+      throw new Error("A sync is already running for this repository.");
     }
-  });
-
-  const runningSync = await prisma.syncRun.findFirst({
-    where: {
-      repositoryId: repository.id,
-      status: "RUNNING"
+    if (input.trigger === "MANUAL") {
+      const remaining = await getManualSyncCooldown(repository.id, tx);
+      if (remaining > 0) {
+        throw new Error(`Manual sync is rate limited. Try again in ${Math.ceil(remaining / 60000)} minute(s).`);
+      }
     }
-  });
-
-  if (runningSync) {
-    throw new Error("A sync is already running for this repository.");
-  }
-
-  let syncRun;
-
-  try {
-    syncRun = await prisma.syncRun.create({
+    return tx.syncRun.create({
       data: {
         workspaceId: repository.workspaceId,
         repositoryId: repository.id,
         trigger: input.trigger,
-        status: "RUNNING"
+        status: "RUNNING",
+        startedAt: new Date()
       }
     });
-  } catch (error) {
+  }).catch((error) => {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
@@ -196,19 +215,36 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
     }
 
     throw error;
-  }
+  });
 
   try {
     const { periodStart, periodEnd } = getLastSevenDayPeriod();
-    const token = await getInstallationAccessToken(repository.installation.installationId);
+    assertTimeAvailable();
+    const token = await getInstallationAccessToken(repository.installation.installationId, { signal });
+    let configurationError = repository.configurationError;
+    let expectedContributors = repository.contributors;
+    let monitoredBranches = repository.branches;
+    if (configurationError) {
+      const setup = await configureNewRepository(repository, token, { signal });
+      configurationError = setup.warnings.length > 0 ? setup.warnings.join("\n") : null;
+      [expectedContributors, monitoredBranches] = await Promise.all([
+        prisma.repositoryContributor.findMany({
+          where: { repositoryId: repository.id, isExpected: true, isIgnored: false },
+          include: { contributor: true }
+        }),
+        prisma.repositoryBranch.findMany({ where: { repositoryId: repository.id }, orderBy: { name: "asc" } })
+      ]);
+    }
+    assertTimeAvailable();
     const commits = await fetchRepositoryCommits({
       owner: repository.owner,
       name: repository.name,
       defaultBranch: repository.defaultBranch,
-      branches: repository.branches.map((branch) => branch.name),
+      branches: monitoredBranches.map((branch) => branch.name),
       token,
       since: periodStart,
-      until: periodEnd
+      until: periodEnd,
+      signal
     });
     const contributorCache = new Map<string, string>();
     const activityByContributor = new Map<
@@ -221,6 +257,7 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
     >();
 
     for (const commit of commits) {
+      assertTimeAvailable();
       const inputContributor = toContributorInput(commit);
       const identity = inputContributor ? contributorIdentity(inputContributor) : null;
 
@@ -235,20 +272,23 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
         contributorId = contributor.id;
         contributorCache.set(identity, contributorId);
 
-        await prisma.repositoryContributor.upsert({
-          where: {
-            repositoryId_contributorId: {
+        // Failed onboarding must not turn discovered authors into explicit roster choices.
+        if (!configurationError) {
+          await prisma.repositoryContributor.upsert({
+            where: {
+              repositoryId_contributorId: {
+                repositoryId: repository.id,
+                contributorId
+              }
+            },
+            update: {},
+            create: {
               repositoryId: repository.id,
-              contributorId
+              contributorId,
+              isExpected: false
             }
-          },
-          update: {},
-          create: {
-            repositoryId: repository.id,
-            contributorId,
-            isExpected: false
-          }
-        });
+          });
+        }
       }
 
       const commitDate = getCommitDate(commit);
@@ -268,7 +308,7 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
       activityByContributor.set(contributorId, current);
     }
 
-    const snapshotRows: Prisma.CommitActivitySnapshotCreateManyInput[] = repository.contributors.map(
+    const snapshotRows: Prisma.CommitActivitySnapshotCreateManyInput[] = expectedContributors.map(
       (repositoryContributor) => {
         const activity = activityByContributor.get(repositoryContributor.contributorId);
         const commitCount = activity?.commitCount ?? 0;
@@ -282,42 +322,62 @@ export async function syncRepositoryActivity(input: SyncRepositoryInput) {
           commitCount,
           lastCommitAt: activity?.lastCommitAt ?? null,
           lastCommitBranch: activity?.lastCommitBranch ?? null,
-          status: commitCount > 0 ? ActivityStatus.ACTIVE : ActivityStatus.INACTIVE
+          status: configurationError ? ActivityStatus.UNKNOWN : commitCount > 0 ? ActivityStatus.ACTIVE : ActivityStatus.INACTIVE
         };
       }
     );
-
-    if (snapshotRows.length > 0) {
-      await prisma.commitActivitySnapshot.createMany({
-        data: snapshotRows
-      });
-    }
-
-    await prisma.repository.update({
-      where: { id: repository.id },
-      data: {
-        lastSyncedAt: periodEnd
-      }
+    const updateRows: Prisma.RepositoryUpdateCreateManyInput[] = commits.flatMap((commit) => {
+      const committedAt = getCommitDate(commit);
+      const message = commit.commit.message?.trim();
+      if (!committedAt || !message) return [];
+      return [{
+        repositoryId: repository.id,
+        sha: commit.sha,
+        message,
+        url: `https://github.com/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.name)}/commit/${encodeURIComponent(commit.sha)}`,
+        authorUsername: cleanString(commit.author?.login) ?? cleanString(commit.commit.author?.name),
+        authorAvatarUrl: cleanString(commit.author?.avatar_url),
+        committedAt,
+        branch: commit.branchName ?? "HEAD"
+      }];
     });
 
-    await prisma.syncRun.update({
-      where: { id: syncRun.id },
-      data: {
-        status: "SUCCESS",
-        finishedAt: new Date()
+    assertTimeAvailable();
+    await prisma.$transaction(async (tx) => {
+      // A timed-out worker must never publish after a newer sync claimed the repository.
+      const completed = await tx.syncRun.updateMany({
+        where: { id: syncRun.id, status: "RUNNING" },
+        data: { status: "SUCCESS", finishedAt: new Date() }
+      });
+      if (completed.count === 0) throw new Error("Sync expired before its results could be saved. Try again.");
+      if (snapshotRows.length > 0) {
+        await tx.commitActivitySnapshot.createMany({ data: snapshotRows });
       }
+      if (updateRows.length > 0) {
+        await tx.repositoryUpdate.createMany({ data: updateRows, skipDuplicates: true });
+      }
+      await tx.repositoryUpdate.deleteMany({
+        where: {
+          repositoryId: repository.id,
+          committedAt: { lt: new Date(periodEnd.getTime() - 30 * 24 * 60 * 60 * 1000) }
+        }
+      });
+      await tx.repository.update({
+        where: { id: repository.id },
+        data: { lastSyncedAt: periodEnd }
+      });
     });
 
     return {
       repositoryId: repository.id,
       fullName: repository.fullName,
       commitCount: commits.length,
-      expectedContributorCount: repository.contributors.length,
+      expectedContributorCount: expectedContributors.length,
       snapshotCount: snapshotRows.length
     };
   } catch (error) {
-    await prisma.syncRun.update({
-      where: { id: syncRun.id },
+    await prisma.syncRun.updateMany({
+      where: { id: syncRun.id, status: "RUNNING" },
       data: {
         status: "FAILED",
         finishedAt: new Date(),
@@ -374,18 +434,22 @@ export async function syncActiveRepositories(input: SyncActiveRepositoriesInput)
 }
 
 export async function syncScheduledWorkspaces(now = new Date()) {
+  const startedAt = Date.now();
+  const deadline = startedAt + SCHEDULED_SYNC_BUDGET_MS;
+  const currentTime = () => new Date(now.getTime() + Date.now() - startedAt);
   const workspaces = await prisma.workspace.findMany({
     where: {
-      repositories: {
-        some: {
-          isActive: true
-        }
-      }
+      OR: [
+        { repositories: { some: { isActive: true } } },
+        { scheduledSyncStartedAt: { not: null } }
+      ]
     },
     select: {
       id: true,
       syncSchedule: true,
-      lastScheduledSyncAt: true
+      lastScheduledSyncAt: true,
+      scheduledSyncStartedAt: true,
+      scheduledSyncLeaseAt: true
     },
     orderBy: {
       createdAt: "asc"
@@ -394,26 +458,28 @@ export async function syncScheduledWorkspaces(now = new Date()) {
   const results = [];
 
   for (const workspace of workspaces) {
-    if (!isScheduledSyncDue(workspace.syncSchedule, workspace.lastScheduledSyncAt, now)) {
+    if (Date.now() >= deadline - SCHEDULED_SYNC_RESERVE_MS) break;
+    if (!workspace.scheduledSyncStartedAt &&
+      !isScheduledSyncDue(workspace.syncSchedule, workspace.lastScheduledSyncAt, now)) {
       continue;
     }
 
-    const dueBefore = new Date(now.getTime() - syncScheduleIntervalMs(workspace.syncSchedule));
+    const cycleStartedAt = workspace.scheduledSyncStartedAt ?? currentTime();
+    const leaseAt = currentTime();
     const claimed = await prisma.workspace.updateMany({
       where: {
         id: workspace.id,
         syncSchedule: workspace.syncSchedule,
+        lastScheduledSyncAt: workspace.lastScheduledSyncAt,
+        scheduledSyncStartedAt: workspace.scheduledSyncStartedAt ?? null,
         OR: [
-          { lastScheduledSyncAt: null },
-          {
-            lastScheduledSyncAt: {
-              lte: dueBefore
-            }
-          }
+          { scheduledSyncLeaseAt: null },
+          { scheduledSyncLeaseAt: { lte: new Date(leaseAt.getTime() - SCHEDULED_SYNC_LEASE_MS) } }
         ]
       },
       data: {
-        lastScheduledSyncAt: now
+        scheduledSyncStartedAt: cycleStartedAt,
+        scheduledSyncLeaseAt: leaseAt
       }
     });
 
@@ -421,14 +487,66 @@ export async function syncScheduledWorkspaces(now = new Date()) {
       continue;
     }
 
-    results.push({
-      workspaceId: workspace.id,
-      schedule: workspace.syncSchedule,
-      result: await syncActiveRepositories({
-        workspaceId: workspace.id,
-        trigger: "CRON"
-      })
-    });
+    const leaseWhere = { id: workspace.id, scheduledSyncStartedAt: cycleStartedAt, scheduledSyncLeaseAt: leaseAt };
+    try {
+      // Terminal failures count as attempted; they stay visible without starving healthy projects.
+      const pending = await prisma.repository.findMany({
+        where: {
+          workspaceId: workspace.id,
+          isActive: true,
+          syncRuns: { none: { trigger: "CRON", status: { in: ["SUCCESS", "FAILED"] }, startedAt: { gte: cycleStartedAt } } }
+        },
+        select: { id: true, fullName: true },
+        orderBy: { fullName: "asc" }
+      });
+      const attempts = [];
+      for (const repository of pending) {
+        if (Date.now() >= deadline - SCHEDULED_SYNC_RESERVE_MS) break;
+        const attemptStartedAt = currentTime();
+        try {
+          const result = await syncRepositoryActivity({
+            repositoryId: repository.id,
+            trigger: "CRON",
+            deadline: Math.min(Date.now() + SCHEDULED_REPOSITORY_BUDGET_MS, deadline - SCHEDULED_SYNC_RESERVE_MS)
+          });
+          attempts.push({ ok: true, repository: repository.fullName, result });
+        } catch (error) {
+          const message = errorMessage(error);
+          const terminal = await prisma.syncRun.findFirst({
+            where: { repositoryId: repository.id, trigger: "CRON", status: { in: ["SUCCESS", "FAILED"] }, startedAt: { gte: cycleStartedAt } }
+          });
+          // Failures before claiming (e.g. a suspended App) also need a durable attempt.
+          if (!terminal) {
+            await prisma.syncRun.create({
+              data: {
+                workspaceId: workspace.id, repositoryId: repository.id, trigger: "CRON", status: "FAILED",
+                startedAt: attemptStartedAt, finishedAt: currentTime(), error: message
+              }
+            });
+          }
+          attempts.push({ ok: false, repository: repository.fullName, error: message });
+        }
+      }
+      const completed = attempts.length === pending.length;
+      await prisma.workspace.updateMany({
+        where: leaseWhere,
+        data: {
+          scheduledSyncLeaseAt: null,
+          ...(completed ? { lastScheduledSyncAt: cycleStartedAt, scheduledSyncStartedAt: null } : {})
+        }
+      });
+      results.push({
+        workspaceId: workspace.id, schedule: workspace.syncSchedule, cycleStartedAt, completed,
+        result: {
+          total: pending.length, succeeded: attempts.filter((attempt) => attempt.ok).length,
+          failed: attempts.filter((attempt) => !attempt.ok).length, deferred: pending.length - attempts.length,
+          results: attempts
+        }
+      });
+    } catch (error) {
+      await prisma.workspace.updateMany({ where: leaseWhere, data: { scheduledSyncLeaseAt: null } });
+      throw error;
+    }
   }
 
   return {

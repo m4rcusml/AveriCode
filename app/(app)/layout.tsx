@@ -1,41 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Activity, Settings } from "lucide-react";
+import { ArrowUpRight, GitBranch, LayoutDashboard, Settings, Users } from "lucide-react";
 import { AuthControls } from "@/components/auth-controls";
 import { NavLink } from "@/components/nav-link";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
-export default function AppLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">
-            <Image alt="" aria-hidden className="brand-logo" height={34} priority src="/logo.svg" width={42} />
-          </span>
-          <span className="brand-copy">
-            <span className="brand-wordmark"><span>Averi</span><strong>Code</strong></span>
-            <span className="brand-tagline">Contributor intelligence</span>
-          </span>
-        </Link>
-        <WorkspaceSwitcher />
-        <nav className="nav" aria-label="Primary navigation">
-          <NavLink exact href="/dashboard">
-            <Activity aria-hidden size={16} />
-            Dashboard
-          </NavLink>
-          <NavLink href="/settings">
-            <Settings aria-hidden size={16} />
-            Settings
-          </NavLink>
-        </nav>
-        <AuthControls />
-      </header>
-      {children}
-    </div>
-  );
+export default function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <div className="app-shell"><a className="skip-link" href="#main-content">Pular para o conteúdo</a><aside className="app-sidebar"><Link className="brand" href="/dashboard"><Image alt="" aria-hidden height={32} width={32} src="/logo.svg" priority /><span className="brand-wordmark">Averi<strong>Code</strong></span></Link><div className="sidebar-workspace"><WorkspaceSwitcher /></div><nav className="nav" aria-label="Navegação principal"><NavLink exact href="/dashboard"><LayoutDashboard aria-hidden size={17} />Portfólio</NavLink><Link href="/dashboard#updates"><ArrowUpRight aria-hidden size={17} />Atualizações</Link><Link href="/dashboard?view=people"><Users aria-hidden size={17} />Pessoas</Link><NavLink href="/settings"><Settings aria-hidden size={17} />Configurações</NavLink></nav><div className="sidebar-note"><GitBranch aria-hidden size={19} /><p>Mais contexto.<br /><strong>Melhores conversas.</strong></p><span>Atividade de código com a visão de quem lidera.</span></div><div className="sidebar-bottom"><span className="sidebar-indicator" />GitHub · Acesso de leitura</div></aside><div className="app-workarea"><header className="topbar"><span className="topbar-label">Visão compartilhada da liderança</span><AuthControls /></header>{children}</div></div>;
 }

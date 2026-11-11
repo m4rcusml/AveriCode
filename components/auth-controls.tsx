@@ -13,7 +13,7 @@ export async function AuthControls() {
         <ThemeToggle />
         <Link className="button button-primary" href="/api/auth/signin">
           <Github aria-hidden size={16} />
-          Sign in
+          Entrar
         </Link>
       </div>
     );
@@ -25,7 +25,7 @@ export async function AuthControls() {
         <ThemeToggle />
         <Link className="button button-secondary" href="/api/auth/signout">
           <LogOut aria-hidden size={16} />
-          Sign out
+          Sair
         </Link>
       </div>
       {session.user.image ? (

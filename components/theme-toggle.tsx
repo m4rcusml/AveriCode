@@ -18,10 +18,10 @@ export function ThemeToggle() {
 
   return (
     <button
-      aria-label="Toggle color theme"
+      aria-label="Alternar tema de cores"
       className="theme-toggle"
       onClick={toggleTheme}
-      title="Toggle color theme"
+      title="Alternar tema de cores"
       type="button"
     >
       <span aria-hidden className="theme-toggle-thumb">

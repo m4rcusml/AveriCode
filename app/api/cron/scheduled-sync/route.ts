@@ -7,7 +7,11 @@ export const maxDuration = 300;
 async function handler(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret && request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    return NextResponse.json({ error: "Scheduled sync is not configured." }, { status: 503 });
+  }
+
+  if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

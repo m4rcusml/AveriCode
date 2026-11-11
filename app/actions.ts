@@ -37,7 +37,9 @@ function stringValue(formData: FormData, key: string) {
 
 function returnTo(formData: FormData, fallback: string) {
   const value = stringValue(formData, "returnTo");
-  return value.startsWith("/") ? value : fallback;
+  return value.startsWith("/") && !value.startsWith("//") && !/[\\\u0000-\u001f\u007f]/.test(value)
+    ? value
+    : fallback;
 }
 
 function safeWorkspaceSwitchPath(pathname: string) {
@@ -141,39 +143,36 @@ function isRunningSyncError(error: unknown) {
   return error instanceof Error && error.message === "A sync is already running for this repository.";
 }
 
+function isRateLimitedSyncError(error: unknown) {
+  return error instanceof Error && error.message.startsWith("Manual sync is rate limited.");
+}
+
 function parseSuggestedContributor(value: FormDataEntryValue) {
   if (typeof value !== "string") {
     return null;
   }
 
   try {
-    const parsed = JSON.parse(value) as {
-      githubUserId?: unknown;
-      username?: unknown;
-      avatarUrl?: unknown;
-    };
+    const parsed = JSON.parse(value) as { username?: unknown };
     const username = typeof parsed.username === "string" ? parsed.username : null;
 
     if (!username) {
       return null;
     }
 
-    return {
-      githubUserId: typeof parsed.githubUserId === "string" ? parsed.githubUserId : null,
-      username,
-      name: username,
-      avatarUrl: typeof parsed.avatarUrl === "string" ? parsed.avatarUrl : null
-    };
+    return { username };
   } catch {
     return null;
   }
 }
 
 async function syncAfterContributorAdded(repositoryId: string) {
-  await syncRepositoryActivity({
-    repositoryId,
-    trigger: "MANUAL"
-  });
+  try {
+    await syncRepositoryActivity({ repositoryId, trigger: "MANUAL" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function switchWorkspaceAction(formData: FormData) {
@@ -264,14 +263,13 @@ export async function addExpectedContributorAction(formData: FormData) {
   const destination = returnTo(formData, "/dashboard");
 
   await addExpectedContributor(user.id, repositoryId, {
-    username: stringValue(formData, "username"),
-    name: stringValue(formData, "name"),
-    email: stringValue(formData, "email")
+    username: stringValue(formData, "username")
   });
-  await syncAfterContributorAdded(repositoryId);
+  const synced = await syncAfterContributorAdded(repositoryId);
 
   revalidatePath("/dashboard");
   revalidatePath(destination);
+  if (!synced) redirectWithSyncError(destination, "sync_failed");
   redirect(destination);
 }
 
@@ -284,15 +282,17 @@ export async function confirmExpectedContributorsAction(formData: FormData) {
     .map(parseSuggestedContributor)
     .filter((contributor): contributor is NonNullable<typeof contributor> => contributor !== null);
 
+  let synced = true;
   if (contributors.length > 0) {
     await addExpectedContributors(user.id, repositoryId, contributors);
-    await syncAfterContributorAdded(repositoryId);
+    synced = await syncAfterContributorAdded(repositoryId);
   } else {
     await assertRepositoryWriteAccess(user.id, repositoryId);
   }
 
   revalidatePath("/dashboard");
   revalidatePath(destination);
+  if (!synced) redirectWithSyncError(destination, "sync_failed");
   redirect(destination);
 }
 
@@ -401,8 +401,13 @@ export async function syncRepositoryNowAction(formData: FormData) {
     if (isRunningSyncError(error)) {
       redirectWithSyncError(destination, "already_running");
     }
-
-    throw error;
+    if (isRateLimitedSyncError(error)) {
+      redirectWithSyncError(destination, "rate_limited", {
+        retry_after_ms: await getManualSyncCooldown(repositoryId)
+      });
+    }
+    revalidatePath("/dashboard");
+    redirectWithSyncError(destination, "sync_failed");
   }
 
   revalidatePath("/dashboard");
@@ -454,7 +459,7 @@ export async function syncWorkspaceRepositoriesNowAction(formData: FormData) {
       });
       succeededCount += 1;
     } catch (error) {
-      if (isRunningSyncError(error)) {
+      if (isRunningSyncError(error) || isRateLimitedSyncError(error)) {
         skippedCount += 1;
       } else {
         failedCount += 1;

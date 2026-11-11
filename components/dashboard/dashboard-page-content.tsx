@@ -1,82 +1,40 @@
 import Link from "next/link";
-import { Github } from "lucide-react";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { DashboardMetrics } from "@/components/dashboard/dashboard-metrics";
-import { InstallationToolbar } from "@/components/dashboard/installation-toolbar";
-import { RepositoryList } from "@/components/dashboard/repository-list";
+import { ArrowRight, GitBranch, Plus, RefreshCw, Search, Users } from "lucide-react";
+import { syncWorkspaceRepositoriesNowAction } from "@/app/actions";
 import { GitHubSetupNotice } from "@/components/github-setup-notice";
 import { ManualSyncToast } from "@/components/manual-sync-toast";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { PortfolioRow, UpdatesFeed } from "@/components/dashboard/portfolio-view";
+import { StatusBadge } from "@/components/status-badge";
 import type { DashboardData } from "@/lib/dashboard/queries";
 import type { SearchParamValue } from "@/lib/search-params";
+import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 
-export type DashboardNoticeSearchParams = {
-  failed_count?: SearchParamValue;
-  imported?: SearchParamValue;
-  manual_sync_error?: SearchParamValue;
-  retry_after_ms?: SearchParamValue;
-  setup_action?: SearchParamValue;
-  setup_error?: SearchParamValue;
-  skipped_count?: SearchParamValue;
-  synced_count?: SearchParamValue;
-};
+export type DashboardNoticeSearchParams = { failed_count?: SearchParamValue; imported?: SearchParamValue; manual_sync_error?: SearchParamValue; retry_after_ms?: SearchParamValue; setup_action?: SearchParamValue; setup_error?: SearchParamValue; skipped_count?: SearchParamValue; synced_count?: SearchParamValue };
 
-type DashboardPageContentProps = {
-  data: DashboardData;
-  searchParams?: DashboardNoticeSearchParams;
-};
-
-export function DashboardPageContent({ data, searchParams }: DashboardPageContentProps) {
-  return (
-    <main className="page">
-      <ManualSyncToast
-        dismissHref={data.selectedDashboardHref}
-        error={searchParams?.manual_sync_error}
-        failedCount={searchParams?.failed_count}
-        retryAfterMs={searchParams?.retry_after_ms}
-        skippedCount={searchParams?.skipped_count}
-        syncedCount={searchParams?.synced_count}
-      />
-      <GitHubSetupNotice
-        imported={searchParams?.imported}
-        setupAction={searchParams?.setup_action}
-        setupError={searchParams?.setup_error}
-      />
-
-      <DashboardHeader installUrl={data.installUrl} workspace={data.workspace} />
-      <DashboardMetrics metrics={data.metrics} />
-
-      {data.tabInstallations.length === 0 ? (
-        <div className="empty-state dashboard-empty">
-          <div>
-            <h2>No repositories connected</h2>
-            <p>Add a personal or organization repository to start monitoring expected contributors.</p>
-            {data.installUrl ? (
-              <a className="button button-primary" href={data.installUrl}>
-                <Github aria-hidden size={16} />
-                Add repositories
-              </a>
-            ) : (
-              <Link className="button button-secondary" href="/settings">
-                Configure GitHub App
-              </Link>
-            )}
-          </div>
-        </div>
-      ) : (
-        <>
-          <InstallationToolbar
-            selectedDashboardHref={data.selectedDashboardHref}
-            selectedInstallation={data.selectedInstallation}
-            tabInstallations={data.tabInstallations}
-            workspace={data.workspace}
-          />
-          <RepositoryList
-            addRepositoriesUrl={data.installUrl}
-            returnTo={data.selectedDashboardHref}
-            selectedInstallation={data.selectedInstallation}
-          />
-        </>
-      )}
-    </main>
-  );
+export function DashboardPageContent({ data, searchParams }: { data: DashboardData; searchParams?: DashboardNoticeSearchParams }) {
+  function href(values: Record<string,string>) {
+    const params = new URLSearchParams({ ...(data.selectedInstallation ? { installationId: data.selectedInstallation.id } : {}), ...(data.query ? { q: data.query } : {}), ...values });
+    return `/dashboard?${params}`;
+  }
+  const schedules: Record<string,string> = { DAILY: "diária", WEEKLY: "semanal", BIWEEKLY: "quinzenal", MONTHLY: "mensal" };
+  return <main className="page portfolio-page" id="main-content">
+    <ManualSyncToast dismissHref={data.selectedDashboardHref} error={searchParams?.manual_sync_error} failedCount={searchParams?.failed_count} retryAfterMs={searchParams?.retry_after_ms} skippedCount={searchParams?.skipped_count} syncedCount={searchParams?.synced_count} />
+    <GitHubSetupNotice imported={searchParams?.imported} setupAction={searchParams?.setup_action} setupError={searchParams?.setup_error} />
+    <div className="page-header portfolio-header"><div><h1 className="page-title">Seu portfólio, em perspectiva.</h1><p className="page-copy">O que mudou nos projetos e onde sua equipe precisa de contexto.</p></div><div className="button-row">
+      <Link className="button button-secondary" href={data.installUrl ?? "/settings"}><Plus aria-hidden size={16} />Conectar projetos</Link>
+      <form action={syncWorkspaceRepositoriesNowAction}><input name="workspaceId" type="hidden" value={data.workspace.id} /><input name="returnTo" type="hidden" value={data.selectedDashboardHref} /><PendingSubmitButton className="button button-primary" disabled={!data.canManageWorkspace || !data.allRepositories.length} pendingLabel="Sincronizando…" title={data.canManageWorkspace ? "Atualizar todos os projetos do workspace" : "Apenas responsáveis e administradores podem sincronizar"}><RefreshCw aria-hidden size={15} />Sincronizar tudo</PendingSubmitButton></form>
+    </div></div>
+    <section className="executive-brief" aria-label="Resumo do portfólio"><div className="brief-primary"><span className="brief-number">{data.metrics.totalRepositoryCount}</span><span>projetos no portfólio<strong>{data.selectedInstallation?.accountLogin ?? "Todas as contas conectadas"}</strong></span></div><div><span className="brief-number">{data.metrics.activeContributorCount}<small> / {data.metrics.expectedContributorCount}</small></span><span>pessoas com commits<strong>Pessoas únicas · {data.metrics.inactiveContributorCount} sem commits · {data.metrics.unknownContributorCount} sem dado atual</strong></span></div><Link className={`brief-attention ${data.metrics.attentionRepositoryCount ? "has-attention" : ""}`} href={href({ focus: "attention" })}><span className="brief-number">{data.metrics.attentionRepositoryCount}</span><span>projetos com dados a revisar<strong>{data.metrics.failedRepositoryCount ? `${data.metrics.failedRepositoryCount} com falha ou acesso suspenso` : "Frescor e conexão dos dados"}</strong></span><ArrowRight aria-hidden size={16} /></Link></section>
+    <div className="portfolio-context"><span><span className="live-dot" aria-hidden />{data.workspace.name}</span><span title={formatDateTime(data.metrics.latestSyncStartedAt)}>Último sucesso: {formatRelativeTime(data.metrics.latestSyncStartedAt)}</span><span>Rotina {schedules[data.syncSchedule] ?? data.syncSchedule} · 06h, São Paulo</span>{data.pendingRequestCount ? <Link className="text-link" href="/settings#requests">{data.pendingRequestCount} solicitações de acesso <ArrowRight size={13} /></Link> : null}</div>
+    {!data.allRepositories.length ? <section className="portfolio-onboarding"><div className="onboarding-symbol"><GitBranch aria-hidden size={30} /></div><div><h2>Reúna seus projetos em uma única visão.</h2><p>Conecte os repositórios que sua diretoria acompanha. O AveriCode organiza as mudanças recentes, as pessoas esperadas e a confiabilidade dos dados.</p><Link className="button button-primary" href={data.installUrl ?? "/settings"}><Plus aria-hidden size={16} />Conectar os primeiros projetos</Link><p className="small-note">Você escolhe os repositórios. O acesso é de leitura.</p></div><ol className="onboarding-steps"><li><strong>Conecte o GitHub</strong><span>Reutilize uma instalação ou ajuste o acesso.</span></li><li><strong>Escolha os projetos</strong><span>Somente sua seleção entra neste workspace.</span></li><li><strong>Leia o contexto</strong><span>Sincronize e acompanhe as mudanças.</span></li></ol></section> : <>
+      <div className="portfolio-workspace"><section className="portfolio-main" aria-labelledby="portfolio-title"><div className="portfolio-section-title"><div className="view-tabs"><Link aria-current={data.view === "projects" ? "page" : undefined} className={data.view === "projects" ? "is-selected" : ""} href={href({ view: "projects", focus: data.focus })}><GitBranch aria-hidden size={15} /><h2 id="portfolio-title">Projetos</h2></Link><Link aria-current={data.view === "people" ? "page" : undefined} className={data.view === "people" ? "is-selected" : ""} href={href({ view: "people", focus: data.focus })}><Users aria-hidden size={15} />Pessoas</Link></div><span className="results-count">{data.repositories.length} projetos nesta visão</span></div>
+      <form className="portfolio-filters" action="/dashboard"><input type="hidden" name="view" value={data.view} /><label className="search-field"><Search aria-hidden size={15} /><span className="sr-only">Buscar projeto ou pessoa</span><input name="q" defaultValue={data.query} placeholder="Buscar projeto ou pessoa" type="search" /></label><label><span className="sr-only">Conta do GitHub</span><select name="installationId" defaultValue={data.selectedInstallation?.id ?? ""}><option value="">Todas as contas</option>{data.installations.map((i) => <option key={i.id} value={i.id}>{i.accountLogin}</option>)}</select></label><label><span className="sr-only">Situação dos projetos</span><select name="focus" defaultValue={data.focus}><option value="all">Todos os projetos</option><option value="attention">Revisar dados</option></select></label><button className="button button-secondary" type="submit">Filtrar</button></form>
+      {data.view === "people" ? <div className="people-overview">{data.people.filter((person) => person.projects.some((project) => data.repositories.some((repository) => repository.id === project.id))).map((person) => <article className="portfolio-person" key={person.id}><div><strong>{person.name}</strong><small>{person.username ? `@${person.username}` : "Sem usuário associado"}</small></div><StatusBadge status={person.status} /><div className="person-projects">{person.projects.map((project) => <Link href={`/dashboard#project-${project.id}`} key={project.id} title={project.status === "ACTIVE" ? "Com commits neste projeto" : project.status === "INACTIVE" ? "Sem commits neste projeto" : "Sem dado atual neste projeto"}><span className={`presence-dot presence-${project.status.toLowerCase()}`} />{project.name.split("/").at(-1)}{project.branch ? <code>{project.branch}</code> : null}</Link>)}</div></article>)}</div> : <><div className="portfolio-table-head" aria-hidden><span>Projeto</span><span>Sincronização</span><span>Participação na janela</span><span>Última mudança salva</span><span /></div>{data.repositories.map((repository) => <PortfolioRow repository={repository} key={repository.id} returnTo={data.selectedDashboardHref} canManage={data.canManageWorkspace} />)}</>}
+      {!data.repositories.length ? <div className="empty-state"><div><h3>Nenhum projeto corresponde aos filtros</h3><p>Altere a busca ou volte à visão completa do portfólio.</p><Link className="text-link" href="/dashboard">Limpar filtros <ArrowRight size={14} /></Link></div></div> : null}
+      <div className="portfolio-legend"><span><i className="presence-dot presence-active" />Com commits</span><span><i className="presence-dot presence-inactive" />Sem commits</span><span><i className="presence-dot presence-unknown" />Sem dado atual</span><span>Expandir um projeto mostra pessoas e branches.</span></div>
+      </section><UpdatesFeed updates={data.updates} /></div>
+    </>}
+    <footer className="portfolio-footnote">Commits são um sinal de atividade, não uma medida de produtividade. Revisões, planejamento e entregas precisam do contexto da equipe.</footer>
+  </main>;
 }

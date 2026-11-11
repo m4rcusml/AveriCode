@@ -11,11 +11,11 @@ type GitHubProfile = {
 };
 
 function githubClientId() {
-  return process.env.GITHUB_OAUTH_CLIENT_ID ?? process.env.GITHUB_APP_CLIENT_ID ?? "";
+  return process.env.GITHUB_OAUTH_CLIENT_ID?.trim() || process.env.GITHUB_APP_CLIENT_ID?.trim() || "";
 }
 
 function githubClientSecret() {
-  return process.env.GITHUB_OAUTH_CLIENT_SECRET ?? process.env.GITHUB_APP_CLIENT_SECRET ?? "";
+  return process.env.GITHUB_OAUTH_CLIENT_SECRET?.trim() || process.env.GITHUB_APP_CLIENT_SECRET?.trim() || "";
 }
 
 export const authOptions: NextAuthOptions = {
@@ -23,12 +23,11 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "database"
   },
-  secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET?.trim() || process.env.AUTH_SECRET?.trim(),
   providers: [
     GitHubProvider({
       clientId: githubClientId(),
-      clientSecret: githubClientSecret(),
-      allowDangerousEmailAccountLinking: true
+      clientSecret: githubClientSecret()
     })
   ],
   callbacks: {
@@ -55,6 +54,23 @@ export const authOptions: NextAuthOptions = {
           data: {
             githubUserId: githubProfile?.id ? String(githubProfile.id) : undefined,
             githubUsername: githubProfile?.login ?? undefined
+          }
+        });
+
+        // NextAuth links tokens once; reauthorization must replace a revoked or expired token.
+        await prisma.account.updateMany({
+          where: {
+            userId: user.id,
+            provider: "github",
+            providerAccountId: account.providerAccountId
+          },
+          data: {
+            access_token: account.access_token,
+            refresh_token: account.refresh_token,
+            expires_at: account.expires_at,
+            token_type: account.token_type,
+            scope: account.scope,
+            id_token: account.id_token
           }
         });
       }

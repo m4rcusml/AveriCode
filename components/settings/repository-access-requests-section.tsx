@@ -9,6 +9,8 @@ type RepositoryAccessRequestsSectionProps = {
   requests: SettingsRepositoryAccessRequest[];
 };
 
+const statusLabels: Record<string, string> = { PENDING: "Pendente", APPROVED: "Aprovada", PARTIALLY_APPROVED: "Parcialmente aprovada", REJECTED: "Rejeitada" };
+
 function StatusIcon({ status }: { status: SettingsRepositoryAccessRequest["status"] }) {
   if (status === "PENDING") return <Clock3 aria-hidden size={16} />;
   if (status === "REJECTED") return <XCircle aria-hidden size={16} />;
@@ -20,20 +22,20 @@ export function RepositoryAccessRequestsSection({
   requests
 }: RepositoryAccessRequestsSectionProps) {
   return (
-    <section className="section">
+    <section className="section" id="requests">
       <div className="section-header">
         <div>
-          <h2 className="section-title">Repository access requests</h2>
+          <h2 className="section-title">Solicitações de projetos</h2>
           <p className="section-copy">
-            Members can request repositories. Only the workspace owner can resolve a request.
+            Membros podem solicitar projetos. O responsável pelo workspace aprova ou rejeita a seleção.
           </p>
         </div>
       </div>
       {requests.length === 0 ? (
         <div className="empty-state">
           <div>
-            <h3>No repository requests</h3>
-            <p>Requests submitted by workspace members will appear here.</p>
+            <h3>Nenhuma solicitação pendente</h3>
+            <p>As solicitações de membros do workspace aparecerão aqui.</p>
           </div>
         </div>
       ) : (
@@ -47,10 +49,10 @@ export function RepositoryAccessRequestsSection({
                     <strong>{request.requesterLabel}</strong>
                   </div>
                   <p className="section-copy">
-                    GitHub account {request.accountLogin} - requested {formatDateTime(request.createdAt)}
+                    Conta GitHub {request.accountLogin} · solicitada em {formatDateTime(request.createdAt)}
                   </p>
                 </div>
-                <span className="pill"><StatusIcon status={request.status} /> {request.status.replaceAll("_", " ")}</span>
+                <span className="pill"><StatusIcon status={request.status} /> {statusLabels[request.status]}</span>
               </div>
               {request.status === "PENDING" && isWorkspaceOwner ? (
                 <form action={resolveRepositoryAccessRequestAction}>
@@ -59,13 +61,13 @@ export function RepositoryAccessRequestsSection({
                     {request.items.map((item) => (
                       <label className="request-item" key={item.id}>
                         <input name="approvedItemId" type="checkbox" value={item.id} />
-                        <span><strong>{item.fullName}</strong><small>{item.private ? "Private" : "Public"}</small></span>
+                        <span><strong>{item.fullName}</strong><small>{item.private ? "Privado" : "Público"}</small></span>
                       </label>
                     ))}
                   </div>
-                  <p className="section-copy">Checked repositories will be approved; unchecked repositories will be rejected.</p>
-                  <PendingSubmitButton className="button button-primary" pendingLabel="Resolving request...">
-                    Resolve request
+                  <p className="section-copy">Os projetos marcados serão aprovados; os demais serão rejeitados.</p>
+                  <PendingSubmitButton className="button button-primary" pendingLabel="Salvando decisão…">
+                    Aprovar seleção e rejeitar demais
                   </PendingSubmitButton>
                 </form>
               ) : (
@@ -73,13 +75,13 @@ export function RepositoryAccessRequestsSection({
                   {request.items.map((item) => (
                     <div className="request-item" key={item.id}>
                       <StatusIcon status={item.status === "PENDING" ? "PENDING" : item.status} />
-                      <span><strong>{item.fullName}</strong><small>{item.status}</small></span>
+                      <span><strong>{item.fullName}</strong><small>{statusLabels[item.status]}</small></span>
                     </div>
                   ))}
                 </div>
               )}
               {request.reviewedAt ? (
-                <p className="section-copy">Resolved {formatDateTime(request.reviewedAt)} by {request.reviewerLabel ?? "a former user"}.</p>
+                <p className="section-copy">Resolvida em {formatDateTime(request.reviewedAt)} por {request.reviewerLabel ?? "uma pessoa removida do workspace"}.</p>
               ) : null}
             </article>
           ))}

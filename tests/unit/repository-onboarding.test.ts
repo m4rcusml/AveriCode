@@ -40,7 +40,7 @@ vi.mock("@/lib/github/app-auth", () => ({
   githubRequest: mocks.githubRequest
 }));
 
-import { importInstallationRepositories } from "@/lib/github/installations";
+import { configureNewRepository, fetchGitHubAppInstallations, importInstallationRepositories } from "@/lib/github/installations";
 
 describe("repository onboarding", () => {
   beforeEach(() => {
@@ -129,5 +129,54 @@ describe("repository onboarding", () => {
       wasExisting: true,
       setup: null
     });
+  });
+
+  test("reads the array returned by the App installations endpoint, including pagination", async () => {
+    const page = Array.from({ length: 100 }, (_, index) => ({ id: index + 1, account: { login: `user-${index}`, type: "User" } }));
+    mocks.githubAppRequest.mockResolvedValueOnce(page).mockResolvedValueOnce([{ id: 101 }]);
+
+    const result = await fetchGitHubAppInstallations();
+
+    expect(result).toHaveLength(101);
+    expect(mocks.githubAppRequest).toHaveBeenLastCalledWith("/app/installations?per_page=100&page=2");
+  });
+
+  test("does not mint tokens or delete repositories when the installation is suspended", async () => {
+    mocks.githubAppRequest.mockResolvedValue({
+      id: 123, repository_selection: "selected", suspended_at: "2026-11-11T09:00:00Z",
+      account: { login: "avericode", type: "Organization" }
+    });
+
+    await importInstallationRepositories("installation-record-1");
+
+    expect(mocks.getInstallationAccessToken).not.toHaveBeenCalled();
+    expect(mocks.prisma.repository.deleteMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.gitHubInstallation.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ suspendedAt: new Date("2026-11-11T09:00:00Z") })
+    }));
+  });
+
+  test("persists collaborator and branch failures rather than treating a partial roster as complete", async () => {
+    mocks.fetchRepositoryPeopleSuggestions.mockResolvedValue({ allPeople: [], errors: ["Repository collaborators could not be loaded."] });
+    mocks.fetchRecentlyUpdatedRepositoryBranches.mockRejectedValue(new Error("Branches unavailable"));
+
+    const result = await configureNewRepository({ id: "repository-1", owner: "avericode", name: "app", defaultBranch: "main" }, "token");
+
+    expect(result.warnings).toHaveLength(2);
+    expect(mocks.prisma.repository.update).toHaveBeenLastCalledWith({
+      where: { id: "repository-1" },
+      data: { configurationError: expect.stringContaining("Repository collaborators could not be loaded.") }
+    });
+    expect(mocks.prisma.repository.update.mock.calls.at(-1)![0].data.configurationError).toContain("Branches unavailable");
+  });
+
+  test("retries only incomplete repositories on refresh and preserves prior roster choices", async () => {
+    mocks.prisma.repository.findMany.mockResolvedValue([{ id: "repository-1", githubRepoId: "456", configurationError: "Permission missing" }]);
+
+    const result = await importInstallationRepositories("installation-record-1");
+
+    expect(mocks.addExpectedContributorsToRepository).toHaveBeenCalledWith("repository-1", expect.any(Array), { preserveExisting: true, signal: undefined });
+    expect(mocks.prisma.repository.update).toHaveBeenLastCalledWith({ where: { id: "repository-1" }, data: { configurationError: null } });
+    expect(result[0].setup?.warnings).toEqual([]);
   });
 });

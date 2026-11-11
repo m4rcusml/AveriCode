@@ -10,3 +10,6 @@ test-results/
 *.tsbuildinfo
 prisma/dev.db
 .next
+.vercel
+.impeccable/questions/
+.env*

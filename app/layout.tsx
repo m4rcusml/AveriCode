@@ -28,10 +28,10 @@ export const metadata: Metadata = {
     default: "AveriCode",
     template: "%s | AveriCode"
   },
-  description: "Weekly GitHub contributor activity monitoring for teams and organizations.",
+  description: "Uma visão do portfólio GitHub, das mudanças recentes e das pessoas que contribuem em seus projetos.",
   openGraph: {
     title: "AveriCode",
-    description: "Monitor expected GitHub contributor activity from saved workspace snapshots.",
+    description: "Contexto de projetos e contribuidores para quem lidera equipes.",
     siteName: "AveriCode",
     type: "website",
     url: "/"
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary",
     title: "AveriCode",
-    description: "Weekly GitHub contributor activity monitoring."
+    description: "Contexto de projetos e contribuidores para quem lidera equipes."
   }
 };
 
@@ -49,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>

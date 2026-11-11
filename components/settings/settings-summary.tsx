@@ -9,42 +9,42 @@ type SettingsSummaryProps = {
 
 export function SettingsSummary({ canManageWorkspace, metrics, workspaceSlug }: SettingsSummaryProps) {
   return (
-    <section className="metric-grid" aria-label="Settings summary">
+    <section className="metric-grid" aria-label="Resumo das configurações">
       <div className="metric-card">
         <span className="metric-index" aria-hidden>01</span>
         <div className="metric-label">
           <Database aria-hidden size={16} />
-          Workspace slug
+          Identificador
         </div>
         <div className="metric-value metric-value-compact">{workspaceSlug}</div>
-        <div className="metric-note">Primary workspace identifier</div>
+        <div className="metric-note">Identificador deste workspace</div>
       </div>
       <div className="metric-card">
         <span className="metric-index" aria-hidden>02</span>
         <div className="metric-label">
           <Users aria-hidden size={16} />
-          Members
+          Membros
         </div>
         <div className="metric-value">{metrics.memberCount}</div>
-        <div className="metric-note">{canManageWorkspace ? "Management enabled" : "View only"}</div>
+        <div className="metric-note">{canManageWorkspace ? "Gestão habilitada" : "Somente leitura"}</div>
       </div>
       <div className="metric-card">
         <span className="metric-index" aria-hidden>03</span>
         <div className="metric-label">
           <Building2 aria-hidden size={16} />
-          GitHub accounts
+          Contas GitHub
         </div>
         <div className="metric-value">{metrics.githubAccountCount}</div>
-        <div className="metric-note">{metrics.organizationCount} organization(s)</div>
+        <div className="metric-note">{metrics.organizationCount} organizações</div>
       </div>
       <div className="metric-card">
         <span className="metric-index" aria-hidden>04</span>
         <div className="metric-label">
           <Github aria-hidden size={16} />
-          Repositories
+          Projetos
         </div>
         <div className="metric-value">{metrics.repositoryCount}</div>
-        <div className="metric-note">{metrics.monitoredRepositoryCount} monitored</div>
+        <div className="metric-note">{metrics.monitoredRepositoryCount} monitorados</div>
       </div>
     </section>
   );

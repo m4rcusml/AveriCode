@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { verifyLinkableGitHubInstallation } from "@/lib/github/repository-access";
-import { verifyGitHubSetupState } from "@/lib/github/setup-state";
+import { consumeGitHubSetupState } from "@/lib/github/setup-state-store";
 import {
   clearPendingGitHubSetupState,
   getPendingGitHubSetupState,
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     if (!stateToken || !pendingState || stateToken !== pendingState) {
       throw new Error("Invalid or already used GitHub setup state.");
     }
-    const state = verifyGitHubSetupState(stateToken, session.user.id);
+    const state = await consumeGitHubSetupState(stateToken, session.user.id);
     await assertWorkspaceAccess(session.user.id, state.workspaceId);
     await verifyLinkableGitHubInstallation(session.user.id, installationId);
     await setSelectedWorkspaceForUser(session.user.id, state.workspaceId);

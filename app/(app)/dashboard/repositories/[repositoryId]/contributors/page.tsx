@@ -51,8 +51,8 @@ function SuggestionTable({
     return (
       <div className="empty-state">
         <div>
-          <h3>No {title.toLowerCase()} found</h3>
-          <p>GitHub did not return users for this group.</p>
+          <h3>Nenhuma pessoa encontrada em {title.toLowerCase()}</h3>
+          <p>O GitHub não retornou pessoas para este grupo.</p>
         </div>
       </div>
     );
@@ -63,10 +63,10 @@ function SuggestionTable({
       <table className="data-table">
         <thead>
           <tr>
-            <th>Select</th>
-            <th>User</th>
+            <th>Selecionar</th>
+            <th>Usuário</th>
             <th>GitHub ID</th>
-            <th>State</th>
+            <th>Situação</th>
           </tr>
         </thead>
         <tbody>
@@ -77,10 +77,10 @@ function SuggestionTable({
               <tr key={person.githubUserId}>
                 <td>
                   {alreadyExpected ? (
-                    <span className="pill">Added</span>
+                    <span className="pill">Adicionado</span>
                   ) : (
                     <input
-                      aria-label={`Select ${person.username}`}
+                      aria-label={`Selecionar ${person.username}`}
                       defaultChecked={defaultChecked}
                       name="selectedContributor"
                       type="checkbox"
@@ -95,7 +95,7 @@ function SuggestionTable({
                 <td>
                   <span className={`status-badge ${alreadyExpected ? "status-active" : "status-unknown"}`}>
                     <Users aria-hidden size={16} />
-                    {alreadyExpected ? "Expected" : "Suggested"}
+                    {alreadyExpected ? "Esperado" : "Sugerido"}
                   </span>
                 </td>
               </tr>
@@ -109,7 +109,7 @@ function SuggestionTable({
 
 function ContributorSuggestionsFallback() {
   return (
-    <section className="section skeleton-section" aria-busy="true" aria-label="Loading contributor suggestions">
+    <section className="section skeleton-section" aria-busy="true" aria-label="Carregando sugestões de pessoas">
       <div className="skeleton-line skeleton-line-short" />
       <div className="skeleton-line" />
       <div className="skeleton-line" />
@@ -133,7 +133,7 @@ async function ContributorSuggestions({
         <div className="notice notice-warning" key={error}>
           <AlertTriangle aria-hidden size={18} />
           <div>
-            <strong>GitHub suggestion warning</strong>
+            <strong>As sugestões do GitHub estão incompletas</strong>
             <p>{error}</p>
           </div>
         </div>
@@ -146,10 +146,9 @@ async function ContributorSuggestions({
         <section className="section">
           <div className="section-header">
             <div>
-              <h2 className="section-title">AveriCode suggestions</h2>
+              <h2 className="section-title">Sugestões do AveriCode</h2>
               <p className="section-copy">
-                Users with repository access who have already committed to this repository. They are selected by
-                default.
+                Pessoas com acesso que já contribuíram neste projeto. Elas estão selecionadas por padrão.
               </p>
             </div>
           </div>
@@ -157,17 +156,16 @@ async function ContributorSuggestions({
             alreadyExpectedIds={alreadyExpectedIdSet}
             defaultChecked
             people={suggestions.suggestedContributors}
-            title="AveriCode suggestions"
+            title="Sugestões do AveriCode"
           />
         </section>
 
         <section className="section">
           <div className="section-header">
             <div>
-              <h2 className="section-title">Access without contributions</h2>
+              <h2 className="section-title">Acesso sem contribuições</h2>
               <p className="section-copy">
-                Users with repository access who are not listed in the repository contributor history. Select any
-                additional people who should be expected.
+                Pessoas com acesso que não aparecem no histórico de contribuições. Selecione quem também deve ser esperado.
               </p>
             </div>
           </div>
@@ -175,18 +173,18 @@ async function ContributorSuggestions({
             alreadyExpectedIds={alreadyExpectedIdSet}
             defaultChecked={false}
             people={suggestions.accessWithoutContributions}
-            title="Access without contributions"
+            title="Acesso sem contribuições"
           />
         </section>
 
         <section className="section action-section">
           <div>
-            <h2 className="section-title">Confirm selected contributors</h2>
-            <p className="section-copy">Selections from both lists will be added as expected contributors.</p>
+            <h2 className="section-title">Confirmar seleção de pessoas</h2>
+            <p className="section-copy">As pessoas selecionadas nas duas listas serão adicionadas como esperadas.</p>
           </div>
-          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adicionando…">
             <Users aria-hidden size={16} />
-            Add selected
+            Adicionar seleção
           </PendingSubmitButton>
         </section>
       </form>
@@ -228,14 +226,15 @@ export default async function RepositoryContributorSetupPage({
     notFound();
   }
 
-  await assertWorkspaceAccess(session.user.id, repository.workspaceId);
+  const membership = await assertWorkspaceAccess(session.user.id, repository.workspaceId);
+  const canManage = membership.role === "OWNER" || membership.role === "ADMIN";
 
   const alreadyExpectedIds = repository.contributors
     .map((repositoryContributor) => repositoryContributor.contributor.githubUserId)
     .filter((githubUserId): githubUserId is string => Boolean(githubUserId));
 
   return (
-    <main className="page">
+    <main className="page" id="main-content">
       <ManualSyncToast
         dismissHref={`/dashboard/repositories/${repository.id}/contributors`}
         error={resolvedSearchParams?.manual_sync_error}
@@ -244,15 +243,14 @@ export default async function RepositoryContributorSetupPage({
 
       <div className="page-header">
         <div>
-          <h1 className="page-title">Configure contributors</h1>
+          <h1 className="page-title">Configurar contribuidores</h1>
           <p className="page-copy">
-            Repository: <strong>{repository.fullName}</strong>. Confirm who should be expected to commit each
-            week.
+            Projeto: <strong>{repository.fullName}</strong>. Defina as pessoas esperadas e ajuste a lista conforme a alocação da equipe.
           </p>
         </div>
         <div className="button-row">
           <Link className="button button-secondary" href="/dashboard">
-            Dashboard
+            Portfólio
           </Link>
           <Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/branches`}>
             Branches
@@ -264,8 +262,8 @@ export default async function RepositoryContributorSetupPage({
         <div className="notice notice-success">
           <Users aria-hidden size={18} />
           <div>
-            <strong>Repository imported.</strong>
-            <p>Review the suggested contributors below and confirm who should be expected.</p>
+            <strong>Projeto conectado.</strong>
+            <p>Revise as sugestões abaixo e confirme as pessoas esperadas.</p>
           </div>
         </div>
       ) : null}
@@ -273,41 +271,41 @@ export default async function RepositoryContributorSetupPage({
       <section className="repo-item">
         <div className="repo-item-header">
           <div>
-            <h2 className="section-title">Add by username</h2>
-            <p className="section-copy">Type a GitHub username to add someone manually as an expected contributor.</p>
+            <h2 className="section-title">Adicionar pelo usuário</h2>
+            <p className="section-copy">Informe um usuário GitHub para adicioná-lo aos contribuidores esperados.</p>
           </div>
         </div>
         <form action={addExpectedContributorAction} className="manual-contributor-form">
           <input name="repositoryId" type="hidden" value={repository.id} />
           <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/contributors`} />
           <div className="field">
-            <label htmlFor={`username-${repository.id}`}>GitHub username</label>
+            <label htmlFor={`username-${repository.id}`}>Usuário GitHub</label>
             <input id={`username-${repository.id}`} name="username" placeholder="octocat" required />
           </div>
-          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
+          <PendingSubmitButton disabled={!canManage} className="button button-primary" pendingLabel="Adicionando…">
             <Plus aria-hidden size={16} />
-            Add
+            Adicionar
           </PendingSubmitButton>
         </form>
       </section>
 
-      <Suspense fallback={<ContributorSuggestionsFallback />}>
+      {canManage ? <Suspense fallback={<ContributorSuggestionsFallback />}>
         <ContributorSuggestions alreadyExpectedIds={alreadyExpectedIds} repositoryId={repository.id} />
-      </Suspense>
+      </Suspense> : <p className="notice">Somente responsáveis e administradores podem alterar a equipe esperada.</p>}
 
       <section className="section">
         <div className="section-header">
           <div>
-            <h2 className="section-title">Expected contributors</h2>
-            <p className="section-copy">{repository.contributors.length} contributor(s) currently expected.</p>
+            <h2 className="section-title">Contribuidores esperados</h2>
+            <p className="section-copy">{repository.contributors.length} pessoas esperadas neste projeto.</p>
           </div>
         </div>
 
         {repository.contributors.length === 0 ? (
           <div className="empty-state">
             <div>
-              <h3>No expected contributors configured</h3>
-              <p>Select suggested users above or add a contributor manually.</p>
+              <h3>Nenhum contribuidor esperado configurado</h3>
+              <p>Selecione as sugestões acima ou adicione uma pessoa pelo nome de usuário.</p>
             </div>
           </div>
         ) : (
@@ -315,11 +313,10 @@ export default async function RepositoryContributorSetupPage({
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Contributor</th>
-                  <th>Username</th>
-                  <th>Email</th>
-                  <th>State</th>
-                  <th>Actions</th>
+                  <th>Contribuidor</th>
+                  <th>Usuário</th>
+                  <th>Situação</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -327,19 +324,16 @@ export default async function RepositoryContributorSetupPage({
                   <tr key={repositoryContributor.id}>
                     <td>
                       <div className="cell-title">
-                        {repositoryContributor.contributor.name ??
-                          repositoryContributor.contributor.username ??
-                          "Unnamed contributor"}
+                        {repositoryContributor.contributor.username ?? "Conta sem vínculo"}
                       </div>
                     </td>
                     <td>
                       {repositoryContributor.contributor.username ? (
                         `@${repositoryContributor.contributor.username}`
                       ) : (
-                        <span className="muted">None</span>
+                        <span className="muted">Não informado</span>
                       )}
                     </td>
-                    <td>{repositoryContributor.contributor.email ?? <span className="muted">None</span>}</td>
                     <td>
                       <span
                         className={`status-badge ${
@@ -347,7 +341,7 @@ export default async function RepositoryContributorSetupPage({
                         }`}
                       >
                         <Users aria-hidden size={16} />
-                        {repositoryContributor.isIgnored ? "Ignored" : "Expected"}
+                        {repositoryContributor.isIgnored ? "Ignorado" : "Esperado"}
                       </span>
                     </td>
                     <td>
@@ -364,9 +358,9 @@ export default async function RepositoryContributorSetupPage({
                             type="hidden"
                             value={`/dashboard/repositories/${repository.id}/contributors`}
                           />
-                          <PendingSubmitButton className="button button-secondary" pendingLabel="Updating...">
+                          <PendingSubmitButton disabled={!canManage} className="button button-secondary" pendingLabel="Salvando…">
                             <CircleSlash aria-hidden size={16} />
-                            {repositoryContributor.isIgnored ? "Restore" : "Ignore"}
+                            {repositoryContributor.isIgnored ? "Restaurar" : "Ignorar"}
                           </PendingSubmitButton>
                         </form>
                         <form action={removeExpectedContributorAction}>
@@ -376,9 +370,9 @@ export default async function RepositoryContributorSetupPage({
                             type="hidden"
                             value={`/dashboard/repositories/${repository.id}/contributors`}
                           />
-                          <PendingSubmitButton className="button button-danger" pendingLabel="Removing...">
+                          <PendingSubmitButton disabled={!canManage} className="button button-danger" pendingLabel="Removendo…">
                             <Trash2 aria-hidden size={16} />
-                            Remove
+                            Remover
                           </PendingSubmitButton>
                         </form>
                       </div>

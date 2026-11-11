@@ -11,9 +11,9 @@ export default function DashboardError({ error, reset }: DashboardErrorProps) {
   return (
     <RouteError
       error={error}
-      message="AveriCode could not load the dashboard data for the selected workspace."
+      message="Não foi possível carregar os projetos deste workspace. Confira a conexão e tente novamente."
       reset={reset}
-      title="Dashboard failed to load"
+      title="Não foi possível carregar o portfólio"
     />
   );
 }

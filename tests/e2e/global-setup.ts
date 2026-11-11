@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
+const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100";
 const statePath = join(process.cwd(), ".playwright", "server.json");
 
 async function isReady() {
@@ -41,11 +41,11 @@ export default async function globalSetup() {
 
   const server = spawn(
     process.execPath,
-    ["./node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1"],
+    ["./node_modules/next/dist/bin/next", "start", "--hostname", new URL(baseURL).hostname, "--port", new URL(baseURL).port || "3100"],
     {
       cwd: process.cwd(),
       detached: process.platform !== "win32",
-      env: process.env,
+      env: { ...process.env, NEXTAUTH_URL: baseURL },
       stdio: "inherit"
     }
   );

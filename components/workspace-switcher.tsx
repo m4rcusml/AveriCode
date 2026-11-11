@@ -16,13 +16,13 @@ export async function WorkspaceSwitcher() {
 
   return (
     <details className="workspace-switcher">
-      <summary aria-label="Switch workspace" className="workspace-switcher-trigger" title="Switch workspace">
+      <summary aria-label="Trocar workspace" className="workspace-switcher-trigger" title="Trocar workspace">
         <PanelsTopLeft aria-hidden size={16} />
         <span>{selectedWorkspace.name}</span>
         <ChevronDown aria-hidden size={15} />
       </summary>
       <div className="workspace-switcher-menu">
-        <div className="workspace-switcher-heading">Workspaces</div>
+        <div className="workspace-switcher-heading">Seus workspaces</div>
         {workspaceOptions.map((membership) => {
           const selected = membership.workspaceId === selectedWorkspace.id;
 
@@ -35,7 +35,7 @@ export async function WorkspaceSwitcher() {
                 pendingLabel={
                   <>
                     <span>
-                      <strong>Switching...</strong>
+                      <strong>Trocando…</strong>
                       <small>{membership.role}</small>
                     </span>
                     <span className="pill">{membership.workspace._count.repositories}</span>

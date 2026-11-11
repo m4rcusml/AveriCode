@@ -1,27 +1,57 @@
 import { prisma } from "@/lib/prisma";
-import {
-  addExpectedContributorsToRepository,
-  type ContributorIdentityInput
-} from "@/lib/contributors";
 import { assertRepositoryWriteAccess, assertWorkspaceWriteAccess } from "@/lib/workspaces";
+
+type ExpectedContributorInput = { username?: string | null };
+
+function configuredUsername(input: ExpectedContributorInput) {
+  if (Object.keys(input).some((key) => key !== "username")) {
+    throw new Error("Contributor configuration accepts only a GitHub username.");
+  }
+  const username = typeof input.username === "string" ? input.username.trim().replace(/^@/, "").toLowerCase() : "";
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?(?:\[bot\])?$/.test(username)) {
+    throw new Error("A valid GitHub username is required.");
+  }
+  return username;
+}
+
+async function configureExpectedContributors(repositoryId: string, inputs: ExpectedContributorInput[]) {
+  const usernames = [...new Set(inputs.map(configuredUsername))];
+  const result = [];
+  for (const username of usernames) {
+    // Configuration links a public login; only trusted GitHub sync may update its global profile.
+    const existing = await prisma.contributor.findFirst({
+      where: { username: { equals: username, mode: "insensitive" } }, select: { id: true }
+    });
+    const contributor = existing ?? await prisma.contributor.upsert({
+      where: { username }, update: {}, create: { username }, select: { id: true }
+    });
+    result.push(await prisma.repositoryContributor.upsert({
+      where: { repositoryId_contributorId: { repositoryId, contributorId: contributor.id } },
+      update: { isExpected: true, isIgnored: false },
+      create: { repositoryId, contributorId: contributor.id, isExpected: true, isIgnored: false },
+      select: { id: true, repositoryId: true, contributorId: true, isExpected: true, isIgnored: true, contributor: { select: { username: true } } }
+    }));
+  }
+  return result;
+}
 
 export async function addExpectedContributor(
   userId: string,
   repositoryId: string,
-  input: ContributorIdentityInput
+  input: ExpectedContributorInput
 ) {
   await assertRepositoryWriteAccess(userId, repositoryId);
-  const [repositoryContributor] = await addExpectedContributorsToRepository(repositoryId, [input]);
+  const [repositoryContributor] = await configureExpectedContributors(repositoryId, [input]);
   return repositoryContributor;
 }
 
 export async function addExpectedContributors(
   userId: string,
   repositoryId: string,
-  inputs: ContributorIdentityInput[]
+  inputs: ExpectedContributorInput[]
 ) {
   await assertRepositoryWriteAccess(userId, repositoryId);
-  return addExpectedContributorsToRepository(repositoryId, inputs);
+  return configureExpectedContributors(repositoryId, inputs);
 }
 
 export async function updateRepositoryContributor(

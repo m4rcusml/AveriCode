@@ -7,12 +7,14 @@ const GITHUB_API_URL = "https://api.github.com";
 export class GitHubApiError extends Error {
   status: number;
   responseBody: string;
+  retryAfterMs: number | null;
 
-  constructor(message: string, status: number, responseBody: string) {
+  constructor(message: string, status: number, responseBody: string, retryAfterMs: number | null = null) {
     super(message);
     this.name = "GitHubApiError";
     this.status = status;
     this.responseBody = responseBody;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -69,21 +71,44 @@ type GitHubRequestInit = RequestInit & {
 };
 
 export async function githubRequest<T>(path: string, init: GitHubRequestInit) {
+  const { bearerToken, ...requestInit } = init;
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/vnd.github+json");
+  headers.set("Authorization", `Bearer ${bearerToken}`);
+  headers.set("Content-Type", "application/json");
+  headers.set("X-GitHub-Api-Version", "2022-11-28");
+  headers.set("User-Agent", "AveriCode");
+  const timeout = AbortSignal.timeout(20_000);
   const response = await fetch(`${GITHUB_API_URL}${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${init.bearerToken}`,
-      "Content-Type": "application/json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      ...init.headers
-    },
+    ...requestInit,
+    headers,
+    signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
     cache: "no-store"
   });
 
   if (!response.ok) {
     const body = await response.text();
-    throw new GitHubApiError(`GitHub API request failed: ${response.status}`, response.status, body);
+    const rateLimited = response.status === 429 || (response.status === 403 &&
+      (response.headers.get("x-ratelimit-remaining") === "0" ||
+        response.headers.has("retry-after") || /rate limit/i.test(body)));
+    let retryAfterMs: number | null = null;
+    if (rateLimited) {
+      const retryAfter = response.headers.get("retry-after");
+      const reset = response.headers.get("x-ratelimit-reset");
+      retryAfterMs = retryAfter && Number.isFinite(Number(retryAfter))
+        ? Math.max(0, Number(retryAfter) * 1000)
+        : reset && Number.isFinite(Number(reset))
+          ? Math.max(0, Number(reset) * 1000 - Date.now())
+          : 60_000;
+    }
+    const message = rateLimited
+      ? `GitHub API rate limit reached. Try again in ${Math.ceil(retryAfterMs! / 60_000)} minute(s).`
+      : response.status === 401
+        ? "GitHub authorization expired or was revoked. Reconnect GitHub and try again."
+        : response.status === 403
+          ? "GitHub denied access. Check the App permissions and installation status."
+          : `GitHub API request failed: ${response.status}`;
+    throw new GitHubApiError(message, response.status, body, retryAfterMs);
   }
 
   if (response.status === 204) {
@@ -106,11 +131,12 @@ type InstallationTokenResponse = {
   expires_at: string;
 };
 
-export async function getInstallationAccessToken(installationId: string) {
+export async function getInstallationAccessToken(installationId: string, init?: { signal?: AbortSignal }) {
   const response = await githubAppRequest<InstallationTokenResponse>(
     `/app/installations/${installationId}/access_tokens`,
     {
-      method: "POST"
+      method: "POST",
+      signal: init?.signal
     }
   );
 

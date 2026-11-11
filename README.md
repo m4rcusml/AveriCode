@@ -1,6 +1,6 @@
 # AveriCode
 
-AveriCode monitors expected GitHub contributors for a workspace and shows who committed to each monitored repository during the last seven days.
+AveriCode gives engineering leadership a saved view of its GitHub project portfolio: recent project changes, expected contributors, branch coverage, and integration health. Commit activity is evidence for a conversation, not a measure of productivity or completed deliveries.
 
 It uses GitHub OAuth for user login and a GitHub App for persistent repository access, scheduled syncs, manual syncs, branch monitoring, collaborator suggestions, and installation webhooks.
 
@@ -118,6 +118,8 @@ Recommended webhook events:
 
 ## Vercel And Supabase Notes
 
+The current deployment uses **Neon PostgreSQL through the Vercel Marketplace**, on the Free plan in São Paulo (`gru1`). The integration supplies `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`; set AveriCode's `DIRECT_URL` to the unpooled value for migrations. Keep GitHub and Auth.js credentials in Vercel Secrets. The Supabase connection examples below remain applicable to alternative deployments.
+
 For Vercel + Supabase, use the Supabase poolers as two separate URLs:
 
 ```env
@@ -192,6 +194,12 @@ An expected repository contributor had zero commits in the last 7 days.
 
 Expected contributors are configured explicitly. New repositories start with GitHub collaborators and contributors selected automatically; users can remove people who should not be expected.
 
+Manual contributor configuration accepts a GitHub login only. It does not trust submitted profile metadata or expose private email addresses shared by the global contributor identity table. Commit attribution requires GitHub's verified `author.id`; anonymous commit email text cannot impersonate a configured GitHub account.
+
+Incomplete automatic contributor/branch configuration is persisted as a review warning and remains visible until configuration succeeds. Retrying setup preserves the workspace's existing expected/ignored choices. Suspended installations and stale snapshots remain distinct from a current activity window.
+
+Scheduled sync stores a resumable workspace cycle and a lease. A dispatcher that reaches its time budget leaves unfinished repositories for a later dispatcher; completed attempts are skipped on resume. A failed project records its own error and does not stop the remaining portfolio or future schedule cycles.
+
 By default, sync monitors the repository default branch plus up to five non-default branches with changes in the previous two weeks. Users can configure additional branches per repository. Dashboard snapshots include the branch of the latest commit when available.
 
 ## Important Routes
@@ -219,4 +227,8 @@ npm run prisma:migrate
 npm run prisma:studio
 ```
 
-`npm run test:e2e` builds the app, starts `next start` on `http://127.0.0.1:3000`, and runs Playwright smoke tests. Public unauthenticated tests run by default. Authenticated dashboard/settings tests are skipped unless `E2E_AUTH_STATE` points to a Playwright storage state file for a seeded signed-in user.
+`npm run test:e2e` builds the app, starts `next start` on `http://127.0.0.1:3100`, and runs Playwright tests. Set `E2E_BASE_URL` to test an already running AveriCode server. Authenticated tests require `E2E_AUTH_STATE`; member permission tests also use `E2E_MEMBER_AUTH_STATE`.
+
+For disposable **local PostgreSQL only**, `npm run seed:qa` creates a clearly labeled fictional portfolio and real expiring OWNER, ADMIN and MEMBER sessions under ignored `.playwright/`. It refuses remote/production databases. Supply `DATABASE_URL` explicitly when running the seed. It never creates a production authentication bypass.
+
+Run `npm run test:integration` with `INTEGRATION_DATABASE_URL` pointing to a local PostgreSQL database after applying migrations. These tests cover real database locks, tenant isolation, unique sync claims and contributor privacy; they are separate from the ordinary unit suite.

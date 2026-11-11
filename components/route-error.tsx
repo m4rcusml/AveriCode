@@ -9,14 +9,14 @@ type RouteErrorProps = {
 
 export function RouteError({ error, message, reset, title }: RouteErrorProps) {
   return (
-    <main className="page">
+    <main className="page" id="main-content">
       <div className="empty-state dashboard-empty" role="alert">
         <div>
           <h1>{title}</h1>
           <p>{message}</p>
-          {error.digest ? <p className="muted">Error digest: {error.digest}</p> : null}
+          {error.digest ? <p className="muted">Identificador do erro: {error.digest}</p> : null}
           <button className="button button-primary" onClick={reset} type="button">
-            Try again
+            Tentar novamente
           </button>
         </div>
       </div>

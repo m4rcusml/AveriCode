@@ -2,12 +2,17 @@ import { GitHubApiError, githubRequest } from "@/lib/github/app-auth";
 
 export type GitHubCommit = {
   sha: string;
+  html_url?: string;
   author: {
     id: number;
     login: string;
     avatar_url: string | null;
   } | null;
   commit: {
+    message?: string;
+    committer?: {
+      date: string | null;
+    } | null;
     author: {
       name: string | null;
       email: string | null;
@@ -40,6 +45,7 @@ type FetchRepositoryCommitsInput = {
   token: string;
   since: Date;
   until: Date;
+  signal?: AbortSignal;
 };
 
 type FetchBranchCommitsInput = FetchRepositoryCommitsInput & {
@@ -69,13 +75,15 @@ async function fetchBranchCommits(input: FetchBranchCommitsInput) {
   const branchQuery = input.branchName ? `&sha=${encodeURIComponent(input.branchName)}` : "";
 
   for (let page = 1; ; page += 1) {
+    input.signal?.throwIfAborted();
     try {
       const pageCommits = await githubRequest<GitHubCommit[]>(
         `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.name)}/commits?since=${encodeURIComponent(
           input.since.toISOString()
         )}&until=${encodeURIComponent(input.until.toISOString())}&per_page=100&page=${page}${branchQuery}`,
         {
-          bearerToken: input.token
+          bearerToken: input.token,
+          signal: input.signal
         }
       );
 
@@ -85,7 +93,7 @@ async function fetchBranchCommits(input: FetchBranchCommitsInput) {
         break;
       }
     } catch (error) {
-      if (error instanceof GitHubApiError && error.status === 409) {
+      if (error instanceof GitHubApiError && error.status === 409 && commits.length === 0) {
         return commits;
       }
 
@@ -99,13 +107,23 @@ async function fetchBranchCommits(input: FetchBranchCommitsInput) {
 export async function fetchRepositoryCommits(input: FetchRepositoryCommitsInput) {
   const commitsBySha = new Map<string, GitHubCommitWithBranch>();
   const branches = uniqueBranchNames([input.defaultBranch, ...(input.branches ?? [])]);
-  const branchNames = branches.length > 0 ? branches : [null];
+  const branchNames: Array<string | null> = input.defaultBranch?.trim() ? branches : [null, ...branches];
 
   for (const branchName of branchNames) {
-    const commits = await fetchBranchCommits({
-      ...input,
-      branchName
-    });
+    input.signal?.throwIfAborted();
+    let commits: GitHubCommit[];
+
+    try {
+      commits = await fetchBranchCommits({ ...input, branchName });
+    } catch (error) {
+      // A deleted optional branch must not hide activity on the default branch.
+      if (branchName && branchName !== input.defaultBranch && error instanceof GitHubApiError &&
+        [404, 422].includes(error.status)) {
+        const availableBranches = await fetchRepositoryBranches(input);
+        if (!availableBranches.some((branch) => branch.name === branchName)) continue;
+      }
+      throw error;
+    }
 
     for (const commit of commits) {
       if (!commitsBySha.has(commit.sha)) {
@@ -124,16 +142,19 @@ export async function fetchRepositoryBranches(input: {
   owner: string;
   name: string;
   token: string;
+  signal?: AbortSignal;
 }) {
   const branches: GitHubBranch[] = [];
 
   for (let page = 1; ; page += 1) {
+    input.signal?.throwIfAborted();
     const pageBranches = await githubRequest<GitHubBranch[]>(
       `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(
         input.name
       )}/branches?per_page=100&page=${page}`,
       {
-        bearerToken: input.token
+        bearerToken: input.token,
+        signal: input.signal
       }
     );
 
@@ -174,6 +195,7 @@ export async function fetchRecentlyUpdatedRepositoryBranches(input: {
   since: Date;
   defaultBranch?: string | null;
   limit?: number;
+  signal?: AbortSignal;
 }) {
   const branches = await fetchRepositoryBranches(input);
   const candidates = branches.filter(
@@ -183,6 +205,7 @@ export async function fetchRecentlyUpdatedRepositoryBranches(input: {
   const batchSize = 10;
 
   for (let index = 0; index < candidates.length; index += batchSize) {
+    input.signal?.throwIfAborted();
     const batch = candidates.slice(index, index + batchSize);
     const dates = await Promise.all(
       batch.map(async (branch) => {
@@ -192,7 +215,8 @@ export async function fetchRecentlyUpdatedRepositoryBranches(input: {
               input.name
             )}/git/commits/${encodeURIComponent(branch.commit!.sha)}`,
             {
-              bearerToken: input.token
+              bearerToken: input.token,
+              signal: input.signal
             }
           );
 

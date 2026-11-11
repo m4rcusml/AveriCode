@@ -69,6 +69,7 @@ export async function getVerifiedGitHubIdentity(userId: string) {
 }
 
 export async function verifyLinkableGitHubInstallation(userId: string, installationId: string) {
+  if (!/^[1-9]\d*$/.test(installationId)) throw new Error("Invalid GitHub installation ID.");
   const identity = await getVerifiedGitHubIdentity(userId);
   const installation = await fetchGitHubInstallation(installationId);
 
@@ -141,7 +142,8 @@ async function upsertInstallation(
     update: {
       accountLogin: installation.account.login,
       accountType: mapAccountType(installation.account.type),
-      repositorySelection: mapRepositorySelection(installation.repository_selection)
+      repositorySelection: mapRepositorySelection(installation.repository_selection),
+      suspendedAt: installation.suspended_at ? new Date(installation.suspended_at) : null
     },
     create: {
       workspaceId,
@@ -177,7 +179,8 @@ async function saveRepositories(
           fullName: repository.full_name,
           private: repository.private,
           defaultBranch: repository.default_branch,
-          isActive: true
+          isActive: true,
+          configurationError: "GitHub project setup is pending. Sync to retry contributor and branch configuration."
         },
         create: {
           workspaceId,
@@ -188,7 +191,8 @@ async function saveRepositories(
           fullName: repository.full_name,
           private: repository.private,
           defaultBranch: repository.default_branch,
-          isActive: true
+          isActive: true,
+          configurationError: "GitHub project setup is pending. Sync to retry contributor and branch configuration."
         }
       })
     );
@@ -301,25 +305,28 @@ export async function resolveRepositoryAccessRequest(input: {
   });
   if (!request || request.status !== "PENDING") throw new Error("Pending request not found.");
   if (request.workspace.ownerId !== input.reviewerUserId) throw new Error("Workspace owner role required.");
-  const requesterMembership = await getWorkspaceMembership(request.requesterId, request.workspaceId);
-  if (!requesterMembership) throw new Error("The requester is no longer a workspace member.");
-  const installation = await verifyLinkableGitHubInstallation(request.requesterId, request.installationId);
-  const accessibleRepositories = await fetchInstallationRepositories(request.installationId);
-  const accessibleById = new Map(accessibleRepositories.map((repository) => [String(repository.id), repository]));
   const approvedIds = new Set(input.approvedItemIds);
   if ([...approvedIds].some((id) => !request.items.some((item) => item.id === id))) {
     throw new Error("An approved request item is invalid.");
   }
   const approvedItems = request.items.filter((item) => approvedIds.has(item.id));
+  let installation: GitHubInstallationResponse | null = null;
+  let accessibleRepositories: GitHubRepositoryResponse[] = [];
+  if (approvedItems.length > 0) {
+    const requesterMembership = await getWorkspaceMembership(request.requesterId, request.workspaceId);
+    if (!requesterMembership) throw new Error("The requester is no longer a workspace member.");
+    installation = await verifyLinkableGitHubInstallation(request.requesterId, request.installationId);
+    accessibleRepositories = await fetchInstallationRepositories(request.installationId);
+  }
+  const accessibleById = new Map(accessibleRepositories.map((repository) => [String(repository.id), repository]));
   const approvedRepositories = approvedItems.map((item) => accessibleById.get(item.githubRepoId));
   if (approvedRepositories.some((repository) => !repository)) {
     throw new Error("An approved repository is no longer accessible. Review the selection and try again.");
   }
-  const currentRequesterMembership = await getWorkspaceMembership(
-    request.requesterId,
-    request.workspaceId
-  );
-  if (!currentRequesterMembership) throw new Error("The requester is no longer a workspace member.");
+  if (approvedItems.length > 0) {
+    const currentRequesterMembership = await getWorkspaceMembership(request.requesterId, request.workspaceId);
+    if (!currentRequesterMembership) throw new Error("The requester is no longer a workspace member.");
+  }
   const currentRequest = await prisma.repositoryAccessRequest.findUnique({
     where: { id: request.id },
     select: { status: true }
@@ -333,7 +340,17 @@ export async function resolveRepositoryAccessRequest(input: {
   if (existingCount > 0) throw new Error("An approved repository is already connected to this workspace.");
 
   const result = await prisma.$transaction(async (tx) => {
-    const savedInstallation = approvedItems.length
+    const status = approvedItems.length === 0
+      ? "REJECTED"
+      : approvedItems.length === request.items.length
+        ? "APPROVED"
+        : "PARTIALLY_APPROVED";
+    const claimed = await tx.repositoryAccessRequest.updateMany({
+      where: { id: request.id, status: "PENDING" },
+      data: { status, reviewedById: input.reviewerUserId, reviewedAt: new Date() }
+    });
+    if (claimed.count === 0) throw new Error("Pending request not found.");
+    const savedInstallation = installation
       ? await upsertInstallation(tx, request.workspaceId, installation)
       : null;
     const savedRepositories = savedInstallation
@@ -358,15 +375,6 @@ export async function resolveRepositoryAccessRequest(input: {
       });
     }
 
-    const status = approvedItems.length === 0
-      ? "REJECTED"
-      : approvedItems.length === request.items.length
-        ? "APPROVED"
-        : "PARTIALLY_APPROVED";
-    await tx.repositoryAccessRequest.update({
-      where: { id: request.id },
-      data: { status, reviewedById: input.reviewerUserId, reviewedAt: new Date() }
-    });
     return { status, savedRepositories };
   });
 

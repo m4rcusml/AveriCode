@@ -28,18 +28,22 @@ function toPerson(user: GitHubUserResponse): GitHubPersonSuggestion {
   };
 }
 
-async function fetchPaginatedUsers(token: string, path: string) {
+async function fetchPaginatedUsers(token: string, path: string, signal?: AbortSignal) {
   const users: GitHubPersonSuggestion[] = [];
 
   for (let page = 1; ; page += 1) {
+    signal?.throwIfAborted();
     const separator = path.includes("?") ? "&" : "?";
-    const pageUsers = await githubRequest<GitHubUserResponse[]>(
+    const pageUsers = await githubRequest<GitHubUserResponse[] | undefined>(
       `${path}${separator}per_page=100&page=${page}`,
       {
-        bearerToken: token
+        bearerToken: token,
+        signal
       }
     );
 
+    // GitHub returns 204 for contributors of an empty repository.
+    if (!pageUsers) break;
     users.push(...pageUsers.map(toPerson));
 
     if (pageUsers.length < 100) {
@@ -54,10 +58,12 @@ async function fetchRepositoryCollaborators(input: {
   token: string;
   owner: string;
   name: string;
+  signal?: AbortSignal;
 }) {
   return fetchPaginatedUsers(
     input.token,
-    `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.name)}/collaborators?affiliation=all`
+    `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.name)}/collaborators?affiliation=all`,
+    input.signal
   );
 }
 
@@ -65,10 +71,12 @@ async function fetchRepositoryContributors(input: {
   token: string;
   owner: string;
   name: string;
+  signal?: AbortSignal;
 }) {
   return fetchPaginatedUsers(
     input.token,
-    `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.name)}/contributors?anon=false`
+    `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.name)}/contributors?anon=false`,
+    input.signal
   );
 }
 
@@ -110,6 +118,7 @@ export async function fetchRepositoryPeopleSuggestions(input: {
   token: string;
   owner: string;
   name: string;
+  signal?: AbortSignal;
 }): Promise<RepositoryPeopleSuggestions> {
   const errors: string[] = [];
   let repositoryCollaborators: GitHubPersonSuggestion[] = [];
@@ -120,7 +129,8 @@ export async function fetchRepositoryPeopleSuggestions(input: {
       await fetchRepositoryCollaborators({
         token: input.token,
         owner: input.owner,
-        name: input.name
+        name: input.name,
+        signal: input.signal
       })
     );
   } catch (error) {
@@ -132,7 +142,8 @@ export async function fetchRepositoryPeopleSuggestions(input: {
       await fetchRepositoryContributors({
         token: input.token,
         owner: input.owner,
-        name: input.name
+        name: input.name,
+        signal: input.signal
       })
     );
   } catch (error) {

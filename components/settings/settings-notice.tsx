@@ -16,17 +16,17 @@ function settingsMessage(params: SettingsSearchParams | undefined) {
 
   if (success) {
     const messages: Record<string, string> = {
-      workspace_member_added: "Workspace member added.",
-      workspace_member_removed: "Workspace member removed.",
-      workspace_member_updated: "Workspace member role updated.",
-      sync_schedule_updated: "Scheduled sync frequency updated.",
-      repository_request_resolved: "Repository access request resolved."
+      workspace_member_added: "Membro adicionado ao workspace.",
+      workspace_member_removed: "Membro removido do workspace.",
+      workspace_member_updated: "Função do membro atualizada.",
+      sync_schedule_updated: "Frequência de sincronização atualizada.",
+      repository_request_resolved: "Solicitação de projetos revisada."
     };
 
     return {
       className: "notice notice-success",
-      title: "Settings updated.",
-      body: messages[success] ?? "The workspace settings were updated."
+      title: "Configurações atualizadas.",
+      body: messages[success] ?? "As configurações do workspace foram atualizadas."
     };
   }
 
@@ -35,23 +35,23 @@ function settingsMessage(params: SettingsSearchParams | undefined) {
   }
 
   const messages: Record<string, string> = {
-    workspace_member_failed: "Could not update the workspace member.",
-    workspace_member_identifier_required: "Enter a GitHub username or email.",
-    workspace_member_not_found: "This user has not signed in to AveriCode yet.",
-    workspace_owner_protected: "The workspace owner cannot be removed or downgraded.",
-    workspace_permission_denied: "Only workspace owners and admins can manage members.",
-    sync_schedule_invalid: "Choose a valid scheduled sync frequency.",
-    sync_schedule_owner_required: "Only the workspace owner can change the scheduled sync frequency.",
-    sync_schedule_failed: "Could not update the scheduled sync frequency.",
-    repository_request_owner_required: "Only the workspace owner can resolve repository requests.",
-    repository_request_stale: "The requester or a selected repository no longer has the required GitHub access.",
-    repository_request_failed: "The repository request could not be resolved. No repositories were changed."
+    workspace_member_failed: "Não foi possível atualizar este membro.",
+    workspace_member_identifier_required: "Informe um usuário GitHub ou e-mail.",
+    workspace_member_not_found: "Esta pessoa ainda não entrou no AveriCode.",
+    workspace_owner_protected: "O responsável pelo workspace não pode ser removido ou rebaixado.",
+    workspace_permission_denied: "Somente responsáveis e administradores podem gerenciar membros.",
+    sync_schedule_invalid: "Escolha uma frequência de sincronização válida.",
+    sync_schedule_owner_required: "Somente o responsável pode alterar a frequência de sincronização.",
+    sync_schedule_failed: "Não foi possível salvar a frequência de sincronização.",
+    repository_request_owner_required: "Somente o responsável pode revisar as solicitações.",
+    repository_request_stale: "O solicitante ou um dos projetos não possui mais o acesso GitHub necessário.",
+    repository_request_failed: "Não foi possível revisar a solicitação. Nenhum projeto foi alterado."
   };
 
   return {
     className: "notice notice-warning",
-    title: "Action needed.",
-    body: messages[error] ?? "Could not update settings."
+    title: "A configuração precisa de atenção.",
+    body: messages[error] ?? "Não foi possível atualizar as configurações."
   };
 }
 

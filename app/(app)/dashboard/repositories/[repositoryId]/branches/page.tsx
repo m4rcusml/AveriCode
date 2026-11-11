@@ -38,17 +38,17 @@ function BranchActionNotice({
 
   if (errorCode) {
     const messages: Record<string, string> = {
-      workspace_permission_denied: "Only workspace owners and admins can configure branches.",
-      branches_add_failed: "The selected branches could not be added. Try refreshing the GitHub branch list.",
-      branch_remove_failed: "This branch could not be removed from monitoring."
+      workspace_permission_denied: "Somente responsáveis e administradores podem configurar branches.",
+      branches_add_failed: "Não foi possível adicionar as branches. Atualize a lista do GitHub e tente novamente.",
+      branch_remove_failed: "Não foi possível remover esta branch do monitoramento."
     };
 
     return (
       <div className="notice notice-warning">
         <AlertTriangle aria-hidden size={18} />
         <div>
-          <strong>Branch configuration was not updated</strong>
-          <p>{messages[errorCode] ?? "Could not update monitored branches."}</p>
+          <strong>A configuração de branches não foi atualizada</strong>
+          <p>{messages[errorCode] ?? "Não foi possível atualizar as branches monitoradas."}</p>
         </div>
       </div>
     );
@@ -59,17 +59,17 @@ function BranchActionNotice({
   }
 
   const messages: Record<string, string> = {
-    branches_added: "Selected branches were added to monitoring.",
-    branch_removed: "The branch was removed from monitoring.",
-    no_branches_selected: "No additional branches were selected."
+    branches_added: "Branches selecionadas adicionadas ao monitoramento.",
+    branch_removed: "Branch removida do monitoramento.",
+    no_branches_selected: "Nenhuma branch adicional selecionada."
   };
 
   return (
     <div className="notice notice-success">
       <GitBranch aria-hidden size={18} />
       <div>
-        <strong>Branch configuration updated</strong>
-        <p>{messages[successCode] ?? "Monitored branches were updated."}</p>
+        <strong>Configuração de branches atualizada</strong>
+        <p>{messages[successCode] ?? "Branches monitoradas atualizadas."}</p>
       </div>
     </div>
   );
@@ -92,7 +92,7 @@ function normalizeBranchName(value: string | null | undefined) {
 
 function AvailableBranchesFallback() {
   return (
-    <section className="section skeleton-section" aria-busy="true" aria-label="Loading available branches">
+    <section className="section skeleton-section" aria-busy="true" aria-label="Carregando branches disponíveis">
       <div className="skeleton-line skeleton-line-short" />
       <div className="skeleton-line" />
       <div className="skeleton-line" />
@@ -115,7 +115,7 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
 
     availableBranches = githubBranches.filter((branch) => !monitoredBranches.has(branch.name));
   } catch (error) {
-    branchLoadError = error instanceof Error ? error.message : "Could not load branches from GitHub.";
+    branchLoadError = error instanceof Error ? error.message : "Não foi possível carregar as branches do GitHub.";
   }
 
   if (branchLoadError) {
@@ -123,7 +123,7 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
       <div className="notice notice-warning">
         <AlertTriangle aria-hidden size={18} />
         <div>
-          <strong>Could not load available branches</strong>
+          <strong>Não foi possível carregar as branches</strong>
           <p>{branchLoadError}</p>
         </div>
       </div>
@@ -138,16 +138,16 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
       <section className="section">
         <div className="section-header">
           <div>
-            <h2 className="section-title">Available branches</h2>
-            <p className="section-copy">Select branches that are not currently monitored.</p>
+            <h2 className="section-title">Branches disponíveis</h2>
+            <p className="section-copy">Selecione as branches que ainda não são monitoradas.</p>
           </div>
         </div>
 
         {availableBranches.length === 0 ? (
           <div className="empty-state">
             <div>
-              <h3>No available branches</h3>
-              <p>All GitHub branches returned for this repository are already monitored.</p>
+              <h3>Nenhuma branch disponível</h3>
+              <p>Todas as branches retornadas pelo GitHub já estão sendo monitoradas.</p>
             </div>
           </div>
         ) : (
@@ -156,7 +156,7 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
               <label className="branch-row branch-row-selectable" key={branch.name}>
                 <div>
                   <div className="cell-title">{branch.name}</div>
-                  <div className="cell-subtitle">Available on GitHub</div>
+                  <div className="cell-subtitle">Disponível no GitHub</div>
                 </div>
                 <input name="selectedBranch" type="checkbox" value={branch.name} />
               </label>
@@ -168,12 +168,12 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
       {availableBranches.length > 0 ? (
         <section className="section action-section">
           <div>
-            <h2 className="section-title">Add selected branches</h2>
-            <p className="section-copy">Future syncs will include commits from the selected branches.</p>
+            <h2 className="section-title">Adicionar branches selecionadas</h2>
+            <p className="section-copy">As próximas sincronizações incluirão commits das branches selecionadas.</p>
           </div>
-          <PendingSubmitButton className="button button-primary" pendingLabel="Adding...">
+          <PendingSubmitButton className="button button-primary" pendingLabel="Adicionando…">
             <Plus aria-hidden size={16} />
-            Add selected
+            Adicionar seleção
           </PendingSubmitButton>
         </section>
       ) : null}
@@ -209,7 +209,8 @@ export default async function RepositoryBranchesPage({
     notFound();
   }
 
-  await assertWorkspaceAccess(session.user.id, repository.workspaceId);
+  const membership = await assertWorkspaceAccess(session.user.id, repository.workspaceId);
+  const canManage = membership.role === "OWNER" || membership.role === "ADMIN";
 
   const defaultBranch = normalizeBranchName(repository.defaultBranch);
   const monitoredBranchNames = [
@@ -218,26 +219,25 @@ export default async function RepositoryBranchesPage({
   ].filter((branchName): branchName is string => Boolean(branchName));
 
   return (
-    <main className="page">
+    <main className="page" id="main-content">
       <BranchActionNotice
         error={resolvedSearchParams?.branch_error}
         success={resolvedSearchParams?.branch_success}
       />
       <div className="page-header">
         <div>
-          <h1 className="page-title">Monitor branches</h1>
+          <h1 className="page-title">Branches monitoradas</h1>
           <p className="page-copy">
-            Repository: <strong>{repository.fullName}</strong>. The default branch is always monitored; add
-            additional branches only when they should count toward contributor activity.
+            Projeto: <strong>{repository.fullName}</strong>. A branch padrão é sempre monitorada. Adicione as demais que representam o trabalho da equipe.
           </p>
         </div>
         <div className="button-row">
           <Link className="button button-secondary" href="/dashboard">
-            Dashboard
+            Portfólio
           </Link>
           <Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/contributors`}>
             <Users aria-hidden size={16} />
-            Contributors
+            Contribuidores
           </Link>
         </div>
       </div>
@@ -245,8 +245,8 @@ export default async function RepositoryBranchesPage({
       <section className="section">
         <div className="section-header">
           <div>
-            <h2 className="section-title">Monitored branches</h2>
-            <p className="section-copy">Commits from these branches are included during repository sync.</p>
+            <h2 className="section-title">Branches monitoradas</h2>
+            <p className="section-copy">Os commits destas branches são considerados na sincronização do projeto.</p>
           </div>
         </div>
 
@@ -255,11 +255,11 @@ export default async function RepositoryBranchesPage({
             <div className="branch-row">
               <div>
                 <div className="cell-title">{defaultBranch}</div>
-                <div className="cell-subtitle">Default branch</div>
+                <div className="cell-subtitle">Branch padrão</div>
               </div>
               <span className="status-badge status-active">
                 <GitBranch aria-hidden size={16} />
-                Always monitored
+                Sempre monitorada
               </span>
             </div>
           ) : null}
@@ -268,14 +268,14 @@ export default async function RepositoryBranchesPage({
             <div className="branch-row" key={branch.id}>
               <div>
                 <div className="cell-title">{branch.name}</div>
-                <div className="cell-subtitle">Additional branch</div>
+                <div className="cell-subtitle">Branch adicional</div>
               </div>
               <form action={removeRepositoryBranchAction}>
                 <input name="repositoryBranchId" type="hidden" value={branch.id} />
                 <input name="returnTo" type="hidden" value={`/dashboard/repositories/${repository.id}/branches`} />
-                <PendingSubmitButton className="button button-danger" pendingLabel="Removing...">
+                <PendingSubmitButton disabled={!canManage} className="button button-danger" pendingLabel="Removendo…">
                   <Trash2 aria-hidden size={16} />
-                  Remove
+                  Remover
                 </PendingSubmitButton>
               </form>
             </div>
@@ -284,15 +284,15 @@ export default async function RepositoryBranchesPage({
           {!defaultBranch && repository.branches.length === 0 ? (
             <div className="empty-state">
               <div>
-                <h3>No monitored branches</h3>
-                <p>GitHub did not return a default branch for this repository.</p>
+                <h3>Nenhuma branch monitorada</h3>
+                <p>O GitHub não retornou uma branch padrão para este projeto.</p>
               </div>
             </div>
           ) : null}
         </div>
       </section>
 
-      <Suspense fallback={<AvailableBranchesFallback />}>
+      {canManage ? <Suspense fallback={<AvailableBranchesFallback />}>
         <AvailableBranchesForm
           monitoredBranchNames={monitoredBranchNames}
           repository={{
@@ -302,7 +302,7 @@ export default async function RepositoryBranchesPage({
             owner: repository.owner
           }}
         />
-      </Suspense>
+      </Suspense> : <p className="notice">Somente responsáveis e administradores podem configurar branches.</p>}
     </main>
   );
 }

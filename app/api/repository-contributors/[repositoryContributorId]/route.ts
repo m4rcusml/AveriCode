@@ -16,10 +16,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   const { repositoryContributorId } = await context.params;
-  const body = (await request.json()) as {
-    isExpected?: boolean;
-    isIgnored?: boolean;
-  };
+  let body: { isExpected?: boolean; isIgnored?: boolean };
+
+  try {
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Invalid contributor update.");
+    }
+    const input = parsed as Record<string, unknown>;
+    if (
+      (input.isExpected === undefined && input.isIgnored === undefined) ||
+      (input.isExpected !== undefined && typeof input.isExpected !== "boolean") ||
+      (input.isIgnored !== undefined && typeof input.isIgnored !== "boolean")
+    ) {
+      throw new Error("Invalid contributor update.");
+    }
+    body = input as typeof body;
+  } catch {
+    return NextResponse.json({ error: "Provide isExpected or isIgnored as a JSON boolean." }, { status: 400 });
+  }
 
   try {
     const repositoryContributor = await updateRepositoryContributor(session.user.id, repositoryContributorId, {

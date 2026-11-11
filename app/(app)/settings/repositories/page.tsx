@@ -27,13 +27,13 @@ type RepositoryConnectionPageProps = {
 };
 
 const errorMessages: Record<string, string> = {
-  connect_failed: "The selected repositories could not be connected. Confirm your GitHub access and try again.",
-  github_reauthorization_required: "Your GitHub authorization is unavailable. Sign out and sign in with GitHub again.",
-  repository_already_connected: "One of the selected repositories is already connected to this workspace.",
-  request_already_pending: "One of the selected repositories already has a pending request.",
-  invalid_setup_state: "The GitHub setup link is invalid or was already used. Start the connection again.",
-  setup_state_expired: "The GitHub setup expired. Start the connection again.",
-  installation_not_authorized: "That GitHub installation is not available to your signed-in GitHub identity."
+  connect_failed: "Não foi possível conectar os projetos. Confira o acesso no GitHub e tente novamente.",
+  github_reauthorization_required: "Sua autorização GitHub expirou. Saia e entre com GitHub novamente.",
+  repository_already_connected: "Um dos projetos já está conectado a este workspace.",
+  request_already_pending: "Um dos projetos já possui solicitação pendente.",
+  invalid_setup_state: "Este link de conexão é inválido ou já foi usado. Inicie a conexão novamente.",
+  setup_state_expired: "O link expirou. Inicie a conexão novamente.",
+  installation_not_authorized: "Esta instalação não está disponível para sua conta GitHub atual."
 };
 
 export default async function RepositoryConnectionPage({ searchParams }: RepositoryConnectionPageProps) {
@@ -57,32 +57,37 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
   try {
     installations = await listLinkableGitHubInstallations(session.user.id);
   } catch (error) {
-    identityError = error instanceof Error ? error.message : "GitHub authorization could not be verified.";
+    identityError = error instanceof Error ? error.message : "Não foi possível verificar sua autorização GitHub.";
   }
 
   const selectedInstallation = selectedInstallationId
     ? installations.find((installation) => String(installation.id) === selectedInstallationId) ?? null
     : null;
-  const selection = selectedInstallation
-    ? await listSelectableInstallationRepositories({
+  let selection: Awaited<ReturnType<typeof listSelectableInstallationRepositories>> | null = null;
+  if (selectedInstallation) {
+    try {
+      selection = await listSelectableInstallationRepositories({
         userId: session.user.id,
         workspaceId,
         installationId: String(selectedInstallation.id)
-      })
-    : null;
+      });
+    } catch {
+      identityError = "Não foi possível carregar os projetos desta instalação. Confira o acesso GitHub e tente novamente.";
+    }
+  }
   const canConnectDirectly = membership.role === "OWNER" || membership.role === "ADMIN";
 
   return (
-    <main className="page">
+    <main className="page" id="main-content">
       {connectSuccess ? (
         <div className="notice notice-success">
           <CircleCheck aria-hidden size={18} />
           <div>
-            <strong>{connectSuccess === "request_created" ? "Request sent." : "Repositories connected."}</strong>
+            <strong>{connectSuccess === "request_created" ? "Solicitação enviada." : "Projetos conectados."}</strong>
             <p>
               {connectSuccess === "request_created"
-                ? "The workspace owner can now approve individual repositories in Settings."
-                : "The selected repositories are now available in this workspace."}
+                ? "O responsável pelo workspace pode aprovar a seleção em Configurações."
+                : "Os projetos selecionados estão disponíveis neste workspace."}
             </p>
           </div>
         </div>
@@ -91,26 +96,27 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
         <div className="notice notice-warning">
           <AlertTriangle aria-hidden size={18} />
           <div>
-            <strong>GitHub connection needs attention.</strong>
-            <p>{identityError ?? errorMessages[connectError ?? ""] ?? "The repositories could not be connected."}</p>
+            <strong>A conexão com o GitHub precisa de atenção.</strong>
+            <p>{identityError ? "Não foi possível verificar o acesso GitHub. Saia e entre novamente se sua autorização expirou." : errorMessages[connectError ?? ""] ?? "Não foi possível conectar os projetos."}</p>
+            <Link className="text-link" href="/api/auth/signout">Sair para renovar a autorização</Link>
           </div>
         </div>
       ) : null}
 
       <div className="page-header">
         <div>
-          <h1 className="page-title">Add repositories</h1>
+          <h1 className="page-title">Conectar projetos</h1>
           <p className="page-copy">
-            Choose repositories for <strong>{workspace.name}</strong>. {canConnectDirectly
-              ? "They will be connected immediately."
-              : "The workspace owner must approve your selection."}
+            Escolha os projetos de <strong>{workspace.name}</strong>. {canConnectDirectly
+              ? "Eles serão conectados imediatamente."
+              : "O responsável pelo workspace deve aprovar sua seleção."}
           </p>
         </div>
         <div className="button-row">
-          <Link className="button button-secondary" href="/settings">Back to settings</Link>
+          <Link className="button button-secondary" href="/settings">Voltar para configurações</Link>
           <a className="button button-primary" href={`/api/github/install?workspaceId=${encodeURIComponent(workspaceId)}`}>
             <Github aria-hidden size={16} />
-            Install or change access
+            Instalar ou ajustar acesso
             <ExternalLink aria-hidden size={14} />
           </a>
         </div>
@@ -119,8 +125,8 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
       <section className="section">
         <div className="section-header">
           <div>
-            <h2 className="section-title">Available GitHub installations</h2>
-            <p className="section-copy">Reuse an installation you own or an organization installation you administer.</p>
+            <h2 className="section-title">Instalações GitHub disponíveis</h2>
+            <p className="section-copy">Reutilize uma instalação pessoal ou de uma organização que você administra.</p>
           </div>
         </div>
         {installations.length ? (
@@ -138,8 +144,8 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
         ) : (
           <div className="empty-state">
             <div>
-              <h3>No reusable installation found</h3>
-              <p>Install AveriCode on your account or an organization you administer, then return here.</p>
+              <h3>Nenhuma instalação disponível</h3>
+              <p>Instale o AveriCode em sua conta ou organização e retorne para escolher os projetos.</p>
             </div>
           </div>
         )}
@@ -149,8 +155,8 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
         <section className="section">
           <div className="section-header">
             <div>
-              <h2 className="section-title">Repositories in {selection.installation.account.login}</h2>
-              <p className="section-copy">Already connected or pending repositories are unavailable.</p>
+              <h2 className="section-title">Projetos em {selection.installation.account.login}</h2>
+              <p className="section-copy">Projetos já conectados ou com solicitação pendente não podem ser selecionados.</p>
             </div>
           </div>
           <form action={connectRepositoriesToWorkspaceAction}>
@@ -158,13 +164,13 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
             <input name="installationId" type="hidden" value={selectedInstallationId} />
             <div className="table-wrap">
               <table className="data-table">
-                <thead><tr><th>Select</th><th>Repository</th><th>Visibility</th><th>Status</th></tr></thead>
+                <thead><tr><th>Selecionar</th><th>Projeto</th><th>Visibilidade</th><th>Status</th></tr></thead>
                 <tbody>
                   {selection.repositories.map((repository) => (
                     <tr key={repository.id}>
                       <td>
                         <input
-                          aria-label={`Select ${repository.full_name}`}
+                          aria-label={`Selecionar ${repository.full_name}`}
                           disabled={repository.unavailable}
                           name="githubRepoId"
                           type="checkbox"
@@ -172,16 +178,16 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
                         />
                       </td>
                       <td><strong>{repository.full_name}</strong></td>
-                      <td>{repository.private ? "Private" : "Public"}</td>
-                      <td>{repository.unavailable ? "Connected or pending" : "Available"}</td>
+                      <td>{repository.private ? "Privado" : "Público"}</td>
+                      <td>{repository.unavailable ? "Conectado ou pendente" : "Disponível"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="button-row form-actions">
-              <PendingSubmitButton className="button button-primary" pendingLabel="Saving...">
-                {canConnectDirectly ? "Connect selected repositories" : "Send approval request"}
+              <PendingSubmitButton className="button button-primary" pendingLabel="Salvando…">
+                {canConnectDirectly ? "Conectar projetos selecionados" : "Solicitar aprovação"}
               </PendingSubmitButton>
             </div>
           </form>

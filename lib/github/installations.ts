@@ -12,6 +12,7 @@ import {
 
 export type GitHubInstallationResponse = {
   id: number;
+  suspended_at?: string | null;
   repository_selection: "all" | "selected";
   account: {
     login: string;
@@ -32,10 +33,6 @@ export type GitHubRepositoryResponse = {
 
 type GitHubRepositoriesResponse = {
   repositories: GitHubRepositoryResponse[];
-};
-
-type GitHubInstallationsResponse = {
-  installations: GitHubInstallationResponse[];
 };
 
 type GitHubOrganizationMembershipResponse = {
@@ -73,13 +70,13 @@ export async function fetchGitHubAppInstallations() {
   const installations: GitHubInstallationResponse[] = [];
 
   for (let page = 1; ; page += 1) {
-    const response = await githubAppRequest<GitHubInstallationsResponse>(
+    const response = await githubAppRequest<GitHubInstallationResponse[]>(
       `/app/installations?per_page=100&page=${page}`
     );
 
-    installations.push(...response.installations);
+    installations.push(...response);
 
-    if (response.installations.length < 100) {
+    if (response.length < 100) {
       break;
     }
   }
@@ -120,8 +117,13 @@ export async function configureNewRepository(
     name: string;
     owner: string;
   },
-  token: string
+  token: string,
+  options: { signal?: AbortSignal } = {}
 ) {
+  await prisma.repository.update({
+    where: { id: repository.id },
+    data: { configurationError: "GitHub project setup is incomplete. Sync again to retry contributor and branch configuration." }
+  });
   const warnings: string[] = [];
   let expectedContributorCount = 0;
   let monitoredBranchCount = 0;
@@ -129,7 +131,8 @@ export async function configureNewRepository(
     fetchRepositoryPeopleSuggestions({
       token,
       owner: repository.owner,
-      name: repository.name
+      name: repository.name,
+      signal: options.signal
     }),
     fetchRecentlyUpdatedRepositoryBranches({
       token,
@@ -137,7 +140,8 @@ export async function configureNewRepository(
       name: repository.name,
       defaultBranch: repository.defaultBranch,
       since: new Date(Date.now() - AUTO_BRANCH_LOOKBACK_MS),
-      limit: AUTO_BRANCH_LIMIT
+      limit: AUTO_BRANCH_LIMIT,
+      signal: options.signal
     })
   ]);
 
@@ -146,7 +150,8 @@ export async function configureNewRepository(
     try {
       const addedContributors = await addExpectedContributorsToRepository(
         repository.id,
-        peopleResult.value.allPeople
+        peopleResult.value.allPeople,
+        { preserveExisting: true, signal: options.signal }
       );
       expectedContributorCount = addedContributors.length;
     } catch (error) {
@@ -191,6 +196,10 @@ export async function configureNewRepository(
     );
   }
 
+  await prisma.repository.update({
+    where: { id: repository.id },
+    data: { configurationError: warnings.length > 0 ? warnings.join("\n") : null }
+  });
   return {
     expectedContributorCount,
     monitoredBranchCount,
@@ -215,7 +224,7 @@ async function isUserOrganizationAdminForInstallation(
 
     return membership.state === "active" && membership.role === "admin";
   } catch (error) {
-    if (error instanceof GitHubApiError && [403, 404].includes(error.status)) {
+    if (error instanceof GitHubApiError && [403, 404].includes(error.status) && error.retryAfterMs == null) {
       return false;
     }
 
@@ -227,6 +236,7 @@ export async function userOwnsGitHubInstallation(
   installation: GitHubInstallationResponse,
   username: string
 ) {
+  if (installation.suspended_at) return false;
   if (installation.account.type === "User") {
     return installation.account.login.toLowerCase() === username.toLowerCase();
   }
@@ -242,24 +252,26 @@ export async function importInstallationRepositories(githubInstallationId: strin
   const installation = await prisma.gitHubInstallation.findUniqueOrThrow({
     where: { id: githubInstallationId }
   });
-  const token = await getInstallationAccessToken(installation.installationId);
-  const [githubInstallation, repositories] = await Promise.all([
-    fetchGitHubInstallation(installation.installationId),
-    fetchInstallationRepositoriesWithToken(token)
-  ]);
-  const repositoriesById = new Map(
-    repositories.map((repository) => [String(repository.id), repository])
-  );
-  const repositoryIds = [...repositoriesById.keys()];
+  const githubInstallation = await fetchGitHubInstallation(installation.installationId);
 
   await prisma.gitHubInstallation.update({
     where: { id: installation.id },
     data: {
       accountLogin: githubInstallation.account.login,
       accountType: mapAccountType(githubInstallation.account.type),
-      repositorySelection: mapRepositorySelection(githubInstallation.repository_selection)
+      repositorySelection: mapRepositorySelection(githubInstallation.repository_selection),
+      suspendedAt: githubInstallation.suspended_at ? new Date(githubInstallation.suspended_at) : null
     }
   });
+
+  // Suspended installations cannot mint tokens; keep the user's configuration for recovery.
+  if (githubInstallation.suspended_at) return [];
+  const token = await getInstallationAccessToken(installation.installationId);
+  const repositories = await fetchInstallationRepositoriesWithToken(token);
+  const repositoriesById = new Map(
+    repositories.map((repository) => [String(repository.id), repository])
+  );
+  const repositoryIds = [...repositoriesById.keys()];
 
   await prisma.repository.deleteMany({
     where: {
@@ -280,7 +292,8 @@ export async function importInstallationRepositories(githubInstallationId: strin
     },
     select: {
       id: true,
-      githubRepoId: true
+      githubRepoId: true,
+      configurationError: true
     }
   });
   const importedRepositories: ImportedRepository[] = [];
@@ -304,11 +317,14 @@ export async function importInstallationRepositories(githubInstallationId: strin
       }
     });
 
+    const setup = existingRepository.configurationError
+      ? await configureNewRepository(savedRepository, token)
+      : null;
     importedRepositories.push({
       id: savedRepository.id,
       fullName: savedRepository.fullName,
       wasExisting: true,
-      setup: null
+      setup
     });
   }
 

@@ -10,20 +10,16 @@ export function SettingsHeader({ installUrl, workspace }: SettingsHeaderProps) {
   return (
     <div className="page-header">
       <div>
-        <p className="page-eyebrow">
-          <span className="signal-square" aria-hidden />
-          Control room / workspace configuration
-        </p>
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title">Configurações</h1>
         <p className="page-copy">
-          Workspace, members, GitHub accounts, and system configuration for <strong>{workspace.name}</strong>.
+          Pessoas, contas GitHub e rotina de sincronização de <strong>{workspace.name}</strong>.
         </p>
       </div>
       <div className="button-row">
         {installUrl ? (
           <a className="button button-primary" href={installUrl}>
             <Github aria-hidden size={16} />
-            Add repositories
+            Conectar projetos
             <ExternalLink aria-hidden size={14} />
           </a>
         ) : null}

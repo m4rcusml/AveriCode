@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { getGitHubAppExternalInstallUrl } from "@/lib/github/install-url";
 import { createGitHubSetupState } from "@/lib/github/setup-state";
+import { rememberGitHubSetupState } from "@/lib/github/setup-state-store";
 import {
   getSelectedWorkspaceForUser,
   setPendingGitHubSetupStateForUser,
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     await setSelectedWorkspaceForUser(session.user.id, workspace.id);
+    await rememberGitHubSetupState(setupState, session.user.id);
     await setPendingGitHubSetupStateForUser(session.user.id, workspace.id, setupState);
 
     return NextResponse.redirect(installUrl);

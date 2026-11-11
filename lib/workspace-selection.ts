@@ -58,7 +58,8 @@ export async function setSelectedWorkspaceForUser(userId: string, workspaceId: s
     httpOnly: true,
     maxAge: COOKIE_MAX_AGE,
     path: "/",
-    sameSite: "lax"
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production"
   });
 }
 

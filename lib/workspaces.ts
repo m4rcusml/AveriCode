@@ -33,37 +33,51 @@ export async function ensureDefaultWorkspaceForUser(userId: string, displayName?
     return existingMembership.workspace;
   }
 
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      githubUsername: true,
-      email: true
+  return prisma.$transaction(async (tx) => {
+    // Concurrent OAuth callbacks must agree on a single default workspace.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+    const membership = await tx.workspaceMember.findFirst({
+      where: { userId },
+      include: { workspace: true },
+      orderBy: { createdAt: "asc" }
+    });
+
+    if (membership) {
+      return membership.workspace;
     }
-  });
 
-  const ownerName =
-    displayName ??
-    user.name ??
-    user.githubUsername ??
-    user.email?.split("@")[0] ??
-    "Personal";
-  const workspaceName = `${ownerName} Workspace`;
-  const workspaceSlug = slugify(`${ownerName}-${user.id.slice(0, 8)}`) || `workspace-${user.id.slice(0, 8)}`;
+    const user = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        githubUsername: true,
+        email: true
+      }
+    });
 
-  return prisma.workspace.create({
-    data: {
-      name: workspaceName,
-      slug: workspaceSlug,
-      ownerId: user.id,
-      members: {
-        create: {
-          userId: user.id,
-          role: "OWNER"
+    const ownerName =
+      displayName ??
+      user.name ??
+      user.githubUsername ??
+      user.email?.split("@")[0] ??
+      "Personal";
+    const workspaceName = `${ownerName} Workspace`;
+    const workspaceSlug = slugify(`${ownerName}-${user.id}`) || `workspace-${user.id}`;
+
+    return tx.workspace.create({
+      data: {
+        name: workspaceName,
+        slug: workspaceSlug,
+        ownerId: user.id,
+        members: {
+          create: {
+            userId: user.id,
+            role: "OWNER"
+          }
         }
       }
-    }
+    });
   });
 }
 
@@ -186,6 +200,15 @@ export async function addWorkspaceMember(
 
   if (!user) {
     throw new Error("Workspace user not found.");
+  }
+
+  const workspace = await prisma.workspace.findUniqueOrThrow({
+    where: { id: workspaceId },
+    select: { ownerId: true }
+  });
+
+  if (user.id === workspace.ownerId) {
+    throw new Error("Workspace owner role cannot be changed.");
   }
 
   return prisma.workspaceMember.upsert({

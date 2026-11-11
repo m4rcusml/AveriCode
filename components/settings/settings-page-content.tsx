@@ -14,7 +14,7 @@ type SettingsPageContentProps = {
 
 export function SettingsPageContent({ data, searchParams }: SettingsPageContentProps) {
   return (
-    <main className="page">
+    <main className="page" id="main-content">
       <SettingsNotice searchParams={searchParams} />
       <SettingsHeader installUrl={data.installUrl} workspace={data.workspace} />
       <SettingsSummary
@@ -27,7 +27,7 @@ export function SettingsPageContent({ data, searchParams }: SettingsPageContentP
         members={data.members}
         workspaceId={data.workspace.id}
       />
-      <GitHubAccountsSection installUrl={data.installUrl} installations={data.installations} />
+      <GitHubAccountsSection canManageWorkspace={data.canManageWorkspace} installUrl={data.installUrl} installations={data.installations} />
       <RepositoryAccessRequestsSection
         isWorkspaceOwner={data.isWorkspaceOwner}
         requests={data.repositoryAccessRequests}

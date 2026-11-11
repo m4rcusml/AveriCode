@@ -51,10 +51,11 @@ export function verifyGitHubSetupState(token: string, expectedUserId: string, no
   } catch {
     throw new Error("Invalid GitHub setup state.");
   }
-  if (!state.nonce || !state.workspaceId || state.userId !== expectedUserId) {
+  if (!state || typeof state.nonce !== "string" || !state.nonce ||
+    typeof state.workspaceId !== "string" || !state.workspaceId || state.userId !== expectedUserId) {
     throw new Error("Invalid GitHub setup state.");
   }
-  if (!Number.isFinite(state.exp) || state.exp < Math.floor(now / 1000)) {
+  if (!Number.isFinite(state.exp) || state.exp <= Math.floor(now / 1000)) {
     throw new Error("GitHub setup state has expired.");
   }
   return state;

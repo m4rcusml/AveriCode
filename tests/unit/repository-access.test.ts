@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     account: { findFirst: vi.fn() },
     user: { findUniqueOrThrow: vi.fn() },
     repository: { count: vi.fn(), findMany: vi.fn(), upsert: vi.fn() },
-    repositoryAccessRequest: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    repositoryAccessRequest: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
     repositoryAccessRequestItem: { count: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     gitHubInstallation: { upsert: vi.fn() }
   }
@@ -76,6 +76,7 @@ describe("multitenant repository access", () => {
     mocks.userOwnsGitHubInstallation.mockResolvedValue(true);
     mocks.prisma.repository.count.mockResolvedValue(0);
     mocks.prisma.repositoryAccessRequestItem.count.mockResolvedValue(0);
+    mocks.prisma.repositoryAccessRequest.updateMany.mockResolvedValue({ count: 1 });
     mocks.prisma.$transaction.mockImplementation(async (callback) => callback(mocks.prisma));
     mocks.prisma.gitHubInstallation.upsert.mockImplementation(async ({ create }) => ({
       id: `installation-${create.workspaceId}`,
@@ -208,8 +209,8 @@ describe("multitenant repository access", () => {
       where: { id: "item-2" },
       data: expect.objectContaining({ status: "REJECTED", pendingKey: null })
     });
-    expect(mocks.prisma.repositoryAccessRequest.update).toHaveBeenCalledWith({
-      where: { id: "request-1" },
+    expect(mocks.prisma.repositoryAccessRequest.updateMany).toHaveBeenCalledWith({
+      where: { id: "request-1", status: "PENDING" },
       data: expect.objectContaining({ status: "PARTIALLY_APPROVED", reviewedById: "owner-1" })
     });
   });
@@ -265,7 +266,7 @@ describe("multitenant repository access", () => {
     ).rejects.toThrow("no longer accessible");
     expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
     expect(mocks.prisma.repository.upsert).not.toHaveBeenCalled();
-    expect(mocks.prisma.repositoryAccessRequest.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.repositoryAccessRequest.updateMany).not.toHaveBeenCalled();
   });
 
   test("rejects approval after the requester leaves the workspace", async () => {
@@ -289,5 +290,33 @@ describe("multitenant repository access", () => {
       })
     ).rejects.toThrow("no longer a workspace member");
     expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  test("lets the owner reject an orphaned request without calling GitHub", async () => {
+    mocks.prisma.repositoryAccessRequest.findUnique.mockResolvedValue({
+      id: "request-1", workspaceId: "workspace-1", requesterId: "member-1", installationId: "123", status: "PENDING",
+      workspace: { ownerId: "owner-1" }, requester: { id: "member-1" }, items: [{ id: "item-1", githubRepoId: "456" }]
+    });
+    mocks.getWorkspaceMembership.mockResolvedValue(null);
+    mocks.prisma.account.findFirst.mockResolvedValue(null);
+
+    const result = await resolveRepositoryAccessRequest({ reviewerUserId: "owner-1", requestId: "request-1", approvedItemIds: [] });
+
+    expect(result.status).toBe("REJECTED");
+    expect(mocks.githubRequest).not.toHaveBeenCalled();
+    expect(mocks.fetchGitHubInstallation).not.toHaveBeenCalled();
+  });
+
+  test("does not connect repositories when another reviewer already claimed the request", async () => {
+    mocks.prisma.repositoryAccessRequest.findUnique.mockResolvedValue({
+      id: "request-1", workspaceId: "workspace-1", requesterId: "member-1", installationId: "123", status: "PENDING",
+      workspace: { ownerId: "owner-1" }, requester: { id: "member-1" }, items: [{ id: "item-1", githubRepoId: "456" }]
+    });
+    mocks.getWorkspaceMembership.mockResolvedValue({ role: "MEMBER" });
+    mocks.prisma.repositoryAccessRequest.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(resolveRepositoryAccessRequest({ reviewerUserId: "owner-1", requestId: "request-1", approvedItemIds: ["item-1"] }))
+      .rejects.toThrow("Pending request not found");
+    expect(mocks.prisma.repository.upsert).not.toHaveBeenCalled();
   });
 });
