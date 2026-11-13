@@ -103,6 +103,7 @@ Controles com raio de 6px; painéis 7px; chips 4px. Barras de distribuição com
 
 ## Do's and Don'ts
 
+- Usar títulos diretos, dados e instruções curtas. Evitar slogans, frases de efeito e explicações repetidas entre seções.
 - Mostrar data, escopo e janela da evidência.
 - Preservar atividade transversal entre projetos.
 - Manter foco visível e semântica nativa.

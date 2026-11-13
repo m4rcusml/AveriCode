@@ -140,7 +140,7 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
         <div className="section-header">
           <div>
             <h2 className="section-title">Branches disponíveis</h2>
-            <p className="section-copy">Selecione as branches que ainda não são monitoradas.</p>
+            <p className="section-copy">Selecione as branches para adicionar.</p>
           </div>
         </div>
 
@@ -148,7 +148,7 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
           <div className="empty-state">
             <div>
               <h3>Nenhuma branch disponível</h3>
-              <p>Todas as branches retornadas pelo GitHub já estão sendo monitoradas.</p>
+              <p>Todas as branches disponíveis já são monitoradas.</p>
             </div>
           </div>
         ) : (
@@ -157,7 +157,6 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
               <label className="branch-row branch-row-selectable" key={branch.name}>
                 <div>
                   <div className="cell-title">{branch.name}</div>
-                  <div className="cell-subtitle">Disponível no GitHub</div>
                 </div>
                 <input name="selectedBranch" type="checkbox" value={branch.name} />
               </label>
@@ -169,8 +168,7 @@ async function AvailableBranchesForm({ monitoredBranchNames, repository }: Avail
       {availableBranches.length > 0 ? (
         <section className="section action-section">
           <div>
-            <h2 className="section-title">Adicionar branches selecionadas</h2>
-            <p className="section-copy">As próximas sincronizações incluirão commits das branches selecionadas.</p>
+            <p className="section-copy">Os commits serão incluídos na próxima sincronização.</p>
           </div>
           <PendingSubmitButton className="button button-primary" pendingLabel="Adicionando…">
             <Plus aria-hidden size={16} />
@@ -228,9 +226,9 @@ export default async function RepositoryBranchesPage({
       />
       <div className="page-header">
         <div>
-          <h1 className="page-title">Branches monitoradas</h1>
+          <h1 className="page-title">Branches</h1>
           <p className="page-copy">
-            Projeto: <strong>{repository.fullName}</strong>. A branch padrão é sempre monitorada. Adicione as demais que representam o trabalho da equipe.
+            {repository.fullName}
           </p>
         </div>
         <div className="button-row">
@@ -248,7 +246,6 @@ export default async function RepositoryBranchesPage({
         <div className="section-header">
           <div>
             <h2 className="section-title">Branches monitoradas</h2>
-            <p className="section-copy">Os commits destas branches são considerados na sincronização do projeto.</p>
           </div>
         </div>
 
@@ -304,7 +301,7 @@ export default async function RepositoryBranchesPage({
             owner: repository.owner
           }}
         />
-      </Suspense> : <section className="section"><h2 className="section-title">Branches disponíveis</h2><p className="section-copy">Consulte as branches do GitHub quando quiser ampliar o monitoramento deste projeto.</p><Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/branches?load=1`}>Buscar branches no GitHub</Link></section> : <p className="notice">Somente responsáveis e administradores podem configurar branches.</p>}
+      </Suspense> : <section className="section"><h2 className="section-title">Branches disponíveis</h2><p className="section-copy">Busque outras branches para monitorar.</p><Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/branches?load=1`}>Buscar branches no GitHub</Link></section> : <p className="notice">Somente responsáveis e administradores podem configurar branches.</p>}
     </main>
   );
 }

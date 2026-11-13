@@ -84,11 +84,7 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
           <CircleCheck aria-hidden size={18} />
           <div>
             <strong>{connectSuccess === "request_created" ? "Solicitação enviada." : "Projetos conectados."}</strong>
-            <p>
-              {connectSuccess === "request_created"
-                ? "O responsável pelo workspace pode aprovar a seleção em Configurações."
-                : "Os projetos selecionados estão disponíveis neste workspace."}
-            </p>
+            {connectSuccess === "request_created" ? <p>Aguarde a aprovação do responsável.</p> : null}
           </div>
         </div>
       ) : null}
@@ -96,7 +92,7 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
         <div className="notice notice-warning">
           <AlertTriangle aria-hidden size={18} />
           <div>
-            <strong>A conexão com o GitHub precisa de atenção.</strong>
+            <strong>Falha na conexão GitHub</strong>
             <p>{identityError ? "Não foi possível verificar o acesso GitHub. Saia e entre novamente se sua autorização expirou." : errorMessages[connectError ?? ""] ?? "Não foi possível conectar os projetos."}</p>
             <Link className="text-link" href="/api/auth/signout">Sair para renovar a autorização</Link>
           </div>
@@ -107,13 +103,13 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
         <div>
           <h1 className="page-title">Conectar projetos</h1>
           <p className="page-copy">
-            Escolha os projetos de <strong>{workspace.name}</strong>. {canConnectDirectly
-              ? "Eles serão conectados imediatamente."
-              : "O responsável pelo workspace deve aprovar sua seleção."}
+            Workspace: <strong>{workspace.name}</strong>. {canConnectDirectly
+              ? ""
+              : "Sua seleção precisa de aprovação do responsável."}
           </p>
         </div>
         <div className="button-row">
-          <Link className="button button-secondary" href="/settings">Voltar para configurações</Link>
+          <Link className="button button-secondary" href="/settings">Configurações</Link>
           <a className="button button-primary" href={`/api/github/install?workspaceId=${encodeURIComponent(workspaceId)}`}>
             <Github aria-hidden size={16} />
             Instalar ou ajustar acesso
@@ -125,8 +121,8 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
       <section className="section">
         <div className="section-header">
           <div>
-            <h2 className="section-title">Instalações GitHub disponíveis</h2>
-            <p className="section-copy">Reutilize uma instalação pessoal ou de uma organização que você administra.</p>
+            <h2 className="section-title">Contas disponíveis</h2>
+            <p className="section-copy">Selecione uma conta ou ajuste o acesso no GitHub.</p>
           </div>
         </div>
         {installations.length ? (
@@ -137,7 +133,7 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
                 href={`/settings/repositories?workspaceId=${encodeURIComponent(workspaceId)}&installationId=${installation.id}`}
                 key={installation.id}
               >
-                {installation.account.login} ({installation.account.type === "Organization" ? "organization" : "personal"})
+                {installation.account.login} ({installation.account.type === "Organization" ? "Organização" : "Pessoal"})
               </Link>
             ))}
           </div>
@@ -145,7 +141,7 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
           <div className="empty-state">
             <div>
               <h3>Nenhuma instalação disponível</h3>
-              <p>Instale o AveriCode em sua conta ou organização e retorne para escolher os projetos.</p>
+              <p>Instale o GitHub App para selecionar repositórios.</p>
             </div>
           </div>
         )}
@@ -156,7 +152,7 @@ export default async function RepositoryConnectionPage({ searchParams }: Reposit
           <div className="section-header">
             <div>
               <h2 className="section-title">Projetos em {selection.installation.account.login}</h2>
-              <p className="section-copy">Projetos já conectados ou com solicitação pendente não podem ser selecionados.</p>
+              <p className="section-copy">Selecione os projetos para conectar.</p>
             </div>
           </div>
           <form action={connectRepositoriesToWorkspaceAction}>

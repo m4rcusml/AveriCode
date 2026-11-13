@@ -48,7 +48,7 @@ export function PortfolioBrief({ data, filterHref }: { data: DashboardData; filt
   const people = activityDistribution(data.people);
   return <section className="executive-brief visual-brief" aria-label="Resumo visual do portfólio">
     <div className="brief-projects">
-      <div className="brief-heading"><span className="brief-number">{sync.total}</span><span>projetos no portfólio<strong>{data.selectedInstallation?.accountLogin ?? "Todas as contas conectadas"}</strong></span></div>
+      <div className="brief-heading"><span className="brief-number">{sync.total}</span><span>projetos<strong>{data.selectedInstallation?.accountLogin ?? "Todas as contas"}</strong></span></div>
       <div className="sync-overview-bar" role="img" aria-label={`${sync.current} projetos com dados atuais, ${sync.failed} com falha ou suspensão e ${sync.waiting} aguardando dados atuais`}>
         {sync.current ? <span className="bar-active" style={{ flexGrow: sync.current }} /> : null}
         {sync.failed ? <span className="bar-failed" style={{ flexGrow: sync.failed }} /> : null}
@@ -61,11 +61,11 @@ export function PortfolioBrief({ data, filterHref }: { data: DashboardData; filt
       </div>
     </div>
     <div className="brief-people">
-      <div className="brief-heading"><span className="brief-number">{people.active}<small> / {people.total}</small></span><span>pessoas com commits<strong>Pessoas únicas · capturas de 7 dias</strong></span><AvatarGroup people={data.people} limit={4} /></div>
+      <div className="brief-heading"><span className="brief-number">{people.active}<small> / {people.total}</small></span><span>pessoas com commits<strong>Pessoas únicas · 7 dias</strong></span><AvatarGroup people={data.people} limit={4} /></div>
       <ParticipationBar counts={people} compactLegend />
     </div>
     <Link className={`brief-attention ${data.metrics.attentionRepositoryCount ? "has-attention" : ""}`} href={filterHref({ focus: "attention" })}>
-      <span className="brief-heading"><span className="brief-number">{data.metrics.attentionRepositoryCount}</span><span>projetos com dados a revisar<strong>{data.metrics.failedRepositoryCount ? `${data.metrics.failedRepositoryCount} com falha ou acesso suspenso` : "Frescor e conexão dos dados"}</strong></span></span>
+      <span className="brief-heading"><span className="brief-number">{data.metrics.attentionRepositoryCount}</span><span>projetos a revisar<strong>{data.metrics.failedRepositoryCount ? `${data.metrics.failedRepositoryCount} com falha ou acesso suspenso` : "Verificar dados e acesso"}</strong></span></span>
       <span className="brief-review-link"><span className="review-desktop-label">Revisar agora</span><span className="review-mobile-label">Revisar {data.metrics.attentionRepositoryCount} projetos</span><ArrowRight aria-hidden size={15} /></span>
     </Link>
   </section>;

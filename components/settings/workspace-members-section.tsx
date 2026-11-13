@@ -24,7 +24,6 @@ export function WorkspaceMembersSection({
       <div className="section-header">
         <div>
           <h2 className="section-title">Membros do workspace</h2>
-          <p className="section-copy">Pessoas com acesso a este workspace e aos dados dos projetos monitorados.</p>
         </div>
       </div>
       {canManageWorkspace ? (

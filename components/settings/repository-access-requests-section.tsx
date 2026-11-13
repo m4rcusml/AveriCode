@@ -27,15 +27,14 @@ export function RepositoryAccessRequestsSection({
         <div>
           <h2 className="section-title">Solicitações de projetos</h2>
           <p className="section-copy">
-            Membros podem solicitar projetos. O responsável pelo workspace aprova ou rejeita a seleção.
+            Solicitações de membros para aprovação do responsável.
           </p>
         </div>
       </div>
       {requests.length === 0 ? (
         <div className="empty-state">
           <div>
-            <h3>Nenhuma solicitação pendente</h3>
-            <p>As solicitações de membros do workspace aparecerão aqui.</p>
+            <h3>Nenhuma solicitação</h3>
           </div>
         </div>
       ) : (
@@ -49,7 +48,7 @@ export function RepositoryAccessRequestsSection({
                     <strong>{request.requesterLabel}</strong>
                   </div>
                   <p className="section-copy">
-                    Conta GitHub {request.accountLogin} · solicitada em {formatDateTime(request.createdAt)}
+                    {request.accountLogin} · {formatDateTime(request.createdAt)}
                   </p>
                 </div>
                 <span className="pill"><StatusIcon status={request.status} /> {statusLabels[request.status]}</span>

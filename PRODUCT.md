@@ -33,6 +33,8 @@ Multiple repositories and GitHub accounts inside an isolated workspace. GitHub O
 
 The name AveriCode remains. The user requested a complete replacement of visual identity and layout, prioritizing information arrangement and fewer clicks. Portuguese is the working language of this redesign.
 
+Use concise, functional copy: necessary data and short instructions, without slogans or repeated explanations. Confirmed by the user on 2026-11-12.
+
 ## Evidence on Hand
 
 Existing source code, Prisma migrations and unit/E2E tests. UX personas are simulated hypotheses requested from AGY, not interviews or validated research. No production data is assumed available.

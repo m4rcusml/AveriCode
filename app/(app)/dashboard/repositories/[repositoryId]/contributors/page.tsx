@@ -42,20 +42,18 @@ function contributorName(person: GitHubPersonSuggestion) {
 function SuggestionTable({
   alreadyExpectedIds,
   defaultChecked,
-  people,
-  title
+  people
 }: {
   alreadyExpectedIds: Set<string>;
   defaultChecked: boolean;
   people: GitHubPersonSuggestion[];
-  title: string;
 }) {
   if (people.length === 0) {
     return (
       <div className="empty-state">
         <div>
-          <h3>Nenhuma pessoa encontrada em {title.toLowerCase()}</h3>
-          <p>O GitHub não retornou pessoas para este grupo.</p>
+          <h3>Nenhum autor encontrado</h3>
+          <p>Adicione pelo usuário GitHub.</p>
         </div>
       </div>
     );
@@ -68,7 +66,6 @@ function SuggestionTable({
           <tr>
             <th>Selecionar</th>
             <th>Usuário</th>
-            <th>GitHub ID</th>
             <th>Situação</th>
           </tr>
         </thead>
@@ -94,7 +91,6 @@ function SuggestionTable({
                 <td>
                   <div className="cell-title">{contributorName(person)}</div>
                 </td>
-                <td>{person.githubUserId}</td>
                 <td>
                   <span className={`status-badge ${alreadyExpected ? "status-active" : "status-unknown"}`}>
                     <Users aria-hidden size={16} />
@@ -151,7 +147,7 @@ async function ContributorSuggestions({
             <div>
               <h2 className="section-title">Autores de commits no GitHub</h2>
               <p className="section-copy">
-                Autores reconhecidos no histórico de commits deste projeto. Ter acesso ao repositório, por si só, não inclui uma pessoa nesta lista.
+                Autores com histórico de commits neste projeto.
               </p>
             </div>
           </div>
@@ -159,14 +155,12 @@ async function ContributorSuggestions({
             alreadyExpectedIds={alreadyExpectedIdSet}
             defaultChecked
             people={suggestions.suggestedContributors}
-            title="Autores de commits no GitHub"
           />
         </section>
 
         <section className="section action-section">
           <div>
-            <h2 className="section-title">Confirmar seleção de pessoas</h2>
-            <p className="section-copy">Os autores selecionados serão adicionados como pessoas esperadas. Use a inclusão manual para registrar outra pessoa da equipe.</p>
+            <p className="section-copy">Adicione os autores selecionados à equipe esperada.</p>
           </div>
           <PendingSubmitButton className="button button-primary" pendingLabel="Adicionando…">
             <Users aria-hidden size={16} />
@@ -230,9 +224,9 @@ export default async function RepositoryContributorSetupPage({
 
       <div className="page-header">
         <div>
-          <h1 className="page-title">Configurar contribuidores</h1>
+          <h1 className="page-title">Contribuidores</h1>
           <p className="page-copy">
-            Projeto: <strong>{repository.fullName}</strong>. Defina as pessoas esperadas e ajuste a lista conforme a alocação da equipe.
+            {repository.fullName}
           </p>
         </div>
         <div className="button-row">
@@ -245,14 +239,14 @@ export default async function RepositoryContributorSetupPage({
         </div>
       </div>
 
-      {resolvedSearchParams?.contributors_saved ? <div className="notice notice-success"><div><strong>Equipe esperada salva.</strong><p>A atividade será recalculada na próxima sincronização. Você pode atualizar este projeto agora.</p></div>{canManage ? <SyncControl repositoryId={repository.id} className="button button-secondary" label="Sincronizar projeto" /> : null}</div> : null}
+      {resolvedSearchParams?.contributors_saved ? <div className="notice notice-success"><div><strong>Equipe esperada salva.</strong><p>Sincronize para recalcular a atividade.</p></div>{canManage ? <SyncControl repositoryId={repository.id} className="button button-secondary" label="Sincronizar projeto" /> : null}</div> : null}
 
       {resolvedSearchParams?.imported ? (
         <div className="notice notice-success">
           <Users aria-hidden size={18} />
           <div>
             <strong>Projeto conectado.</strong>
-            <p>Revise as sugestões abaixo e confirme as pessoas esperadas.</p>
+            <p>Revise os contribuidores esperados.</p>
           </div>
         </div>
       ) : null}
@@ -260,8 +254,7 @@ export default async function RepositoryContributorSetupPage({
       <section className="repo-item">
         <div className="repo-item-header">
           <div>
-            <h2 className="section-title">Adicionar pelo usuário</h2>
-            <p className="section-copy">Informe um usuário GitHub para adicioná-lo aos contribuidores esperados.</p>
+            <h2 className="section-title">Adicionar contribuidor</h2>
           </div>
         </div>
         <form action={addExpectedContributorAction} className="manual-contributor-form">
@@ -280,21 +273,21 @@ export default async function RepositoryContributorSetupPage({
 
       {canManage ? showSuggestions ? <Suspense fallback={<ContributorSuggestionsFallback />}>
         <ContributorSuggestions alreadyExpectedIds={alreadyExpectedIds} repositoryId={repository.id} />
-      </Suspense> : <section className="section"><h2 className="section-title">Autores de commits no GitHub</h2><p className="section-copy">Consulte o histórico do GitHub para revisar autores que ainda não estão na equipe esperada. O acesso ao repositório, por si só, não inclui uma pessoa.</p><Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/contributors?suggestions=1`}>Buscar autores no GitHub</Link></section> : <p className="notice">Somente responsáveis e administradores podem alterar a equipe esperada.</p>}
+      </Suspense> : <section className="section"><h2 className="section-title">Autores de commits no GitHub</h2><p className="section-copy">Inclusão automática por histórico de commits. Adicione outras pessoas pelo usuário GitHub.</p><Link className="button button-secondary" href={`/dashboard/repositories/${repository.id}/contributors?suggestions=1`}>Buscar autores no GitHub</Link></section> : <p className="notice">Somente responsáveis e administradores podem alterar a equipe esperada.</p>}
 
       <section className="section">
         <div className="section-header">
           <div>
             <h2 className="section-title">Contribuidores esperados</h2>
-            <p className="section-copy">{repository.contributors.length} pessoas esperadas neste projeto.</p>
+            <p className="section-copy">{repository.contributors.length} pessoas</p>
           </div>
         </div>
 
         {repository.contributors.length === 0 ? (
           <div className="empty-state">
             <div>
-              <h3>Nenhum contribuidor esperado configurado</h3>
-              <p>Selecione as sugestões acima ou adicione uma pessoa pelo nome de usuário.</p>
+              <h3>Nenhum contribuidor configurado</h3>
+              <p>Adicione pelo usuário GitHub ou busque autores.</p>
             </div>
           </div>
         ) : (
@@ -303,7 +296,6 @@ export default async function RepositoryContributorSetupPage({
               <thead>
                 <tr>
                   <th>Contribuidor</th>
-                  <th>Usuário</th>
                   <th>Origem</th>
                   <th>Situação</th>
                   <th>Ações</th>
@@ -314,17 +306,10 @@ export default async function RepositoryContributorSetupPage({
                   <tr key={repositoryContributor.id}>
                     <td>
                       <div className="cell-title">
-                        {repositoryContributor.contributor.username ?? "Conta sem vínculo"}
+                        {repositoryContributor.contributor.username ? `@${repositoryContributor.contributor.username}` : "Conta sem vínculo"}
                       </div>
                     </td>
-                    <td>
-                      {repositoryContributor.contributor.username ? (
-                        `@${repositoryContributor.contributor.username}`
-                      ) : (
-                        <span className="muted">Não informado</span>
-                      )}
-                    </td>
-                    <td>{repositoryContributor.source === "GITHUB" ? "Histórico de commits" : repositoryContributor.source === "MANUAL" ? "Adicionada manualmente" : "Lista anterior"}</td>
+                    <td>{repositoryContributor.source === "GITHUB" ? "GitHub" : repositoryContributor.source === "MANUAL" ? "Manual" : "Lista anterior"}</td>
                     <td>
                       <span
                         className={`status-badge ${

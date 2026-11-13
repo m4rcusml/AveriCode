@@ -21,9 +21,6 @@ export function ScheduledSyncSection({
       <div className="section-header">
         <div>
           <h2 className="section-title">Sincronização agendada</h2>
-          <p className="section-copy">
-            Escolha a frequência de atualização dos projetos deste workspace.
-          </p>
         </div>
       </div>
 
@@ -57,9 +54,9 @@ export function ScheduledSyncSection({
       <div className="notice settings-cron-note">
         <CalendarClock aria-hidden size={18} />
         <div>
-          <strong>{labels[workspace.syncSchedule]}</strong>
+          <strong>{labels[workspace.syncSchedule]} · 06h, São Paulo</strong>
           <p>
-            Verificação diária às 06h de São Paulo, respeitando a frequência escolhida. Última tentativa agendada: {formatDateTime(workspace.lastScheduledSyncAt)}.
+            Última tentativa: {formatDateTime(workspace.lastScheduledSyncAt)}.
           </p>
         </div>
       </div>

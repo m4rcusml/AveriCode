@@ -12,7 +12,7 @@ export function SettingsHeader({ installUrl, workspace }: SettingsHeaderProps) {
       <div>
         <h1 className="page-title">Configurações</h1>
         <p className="page-copy">
-          Pessoas, contas GitHub e rotina de sincronização de <strong>{workspace.name}</strong>.
+          {workspace.name}
         </p>
       </div>
       <div className="button-row">

@@ -16,15 +16,14 @@ export function GitHubAccountsSection({ installUrl, installations, canManageWork
     <section className="section">
       <div className="section-header">
         <div>
-          <h2 className="section-title">Contas GitHub do workspace</h2>
-          <p className="section-copy">Organizações e instalações pessoais que oferecem acesso aos repositórios.</p>
+          <h2 className="section-title">Contas GitHub</h2>
         </div>
       </div>
       {installations.length === 0 ? (
         <div className="empty-state">
           <div>
-            <h3>Nenhuma instalação conectada</h3>
-            <p>Conecte o GitHub App para selecionar projetos e sincronizar sua atividade.</p>
+            <h3>Nenhuma conta conectada</h3>
+            <p>Conecte repositórios pelo GitHub App.</p>
             {installUrl ? (
               <a className="button button-primary" href={installUrl}>
                 <Github aria-hidden size={16} />

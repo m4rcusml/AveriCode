@@ -38,7 +38,7 @@ test.describe("authenticated app smoke", () => {
 
   test("announces missing activity evidence as unknown to screen readers", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Seu portfólio, em perspectiva." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfólio", exact: true })).toBeVisible();
     const unknownProject = page.locator(".portfolio-project").filter({
       has: page.locator(".project-presence small", { hasText: /^Sem dado atual/ })
     }).first();
@@ -63,7 +63,7 @@ test.describe("authenticated app smoke", () => {
     await page.goto("/dashboard?q=qa-no-matching-project-87219");
     const feed = page.locator(".updates-panel");
     await expect(feed.getByRole("heading", { name: "Nenhuma atualização corresponde aos filtros" })).toBeVisible();
-    await expect(feed.getByText("O contexto começa no próximo sync")).toHaveCount(0);
+    await expect(feed.getByText("Nenhum commit carregado")).toHaveCount(0);
     await feed.getByRole("link", { name: "Limpar filtros" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.locator(".portfolio-project").first()).toBeVisible();

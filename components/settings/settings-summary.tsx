@@ -11,16 +11,13 @@ export function SettingsSummary({ canManageWorkspace, metrics, workspaceSlug }: 
   return (
     <section className="metric-grid" aria-label="Resumo das configurações">
       <div className="metric-card">
-        <span className="metric-index" aria-hidden>01</span>
         <div className="metric-label">
           <Database aria-hidden size={16} />
           Identificador
         </div>
         <div className="metric-value metric-value-compact">{workspaceSlug}</div>
-        <div className="metric-note">Identificador deste workspace</div>
       </div>
       <div className="metric-card">
-        <span className="metric-index" aria-hidden>02</span>
         <div className="metric-label">
           <Users aria-hidden size={16} />
           Membros
@@ -29,7 +26,6 @@ export function SettingsSummary({ canManageWorkspace, metrics, workspaceSlug }: 
         <div className="metric-note">{canManageWorkspace ? "Gestão habilitada" : "Somente leitura"}</div>
       </div>
       <div className="metric-card">
-        <span className="metric-index" aria-hidden>03</span>
         <div className="metric-label">
           <Building2 aria-hidden size={16} />
           Contas GitHub
@@ -38,7 +34,6 @@ export function SettingsSummary({ canManageWorkspace, metrics, workspaceSlug }: 
         <div className="metric-note">{metrics.organizationCount} organizações</div>
       </div>
       <div className="metric-card">
-        <span className="metric-index" aria-hidden>04</span>
         <div className="metric-label">
           <Github aria-hidden size={16} />
           Projetos
